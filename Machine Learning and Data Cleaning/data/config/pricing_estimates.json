@@ -24,43 +24,53 @@
     "level_averages": {
         "Academic (Degree)": {
             "duration": "4 years",
-            "fee": "2,800,000 LKR",
-            "range": "1,500,000 - 3,500,000 LKR"
+            "fee": "1,500,000 - 3,800,000 LKR",
+            "range": "1.5M - 3.8M"
         },
         "Professional": {
             "duration": "3-6 months",
-            "fee": "200,000 LKR",
-            "range": "50,000 - 450,000 LKR"
+            "fee": "35,000 - 250,000 LKR",
+            "range": "35k - 250k"
         },
         "Diploma": {
             "duration": "1 year",
-            "fee": "150,000 LKR",
-            "range": "80,000 - 300,000 LKR"
+            "fee": "120,000 - 450,000 LKR",
+            "range": "120k - 450k"
         },
         "HND": {
             "duration": "2 years",
-            "fee": "550,000 LKR",
-            "range": "395,000 - 620,000 LKR"
+            "fee": "450,000 - 950,000 LKR",
+            "range": "450k - 950k"
         },
         "Postgraduate": {
-            "duration": "2 years",
-            "fee": "850,000 LKR",
-            "range": "600,000 - 900,000 LKR"
+            "duration": "18-24 months",
+            "fee": "650,000 - 1,800,000 LKR",
+            "range": "650k - 1.8M"
         },
-        "Beginner": {
+        "Masters (MSc/MBA)": {
+            "duration": "2 years",
+            "fee": "800,000 - 2,200,000 LKR",
+            "range": "800k - 2.2M"
+        },
+        "Foundation": {
+            "duration": "6-12 months",
+            "fee": "80,000 - 250,000 LKR",
+            "range": "80k - 250k"
+        },
+        "Beginner / Vocational": {
             "duration": "3 months",
-            "fee": "60,000 LKR",
-            "range": "25,000 - 100,000 LKR"
+            "fee": "15,000 - 85,000 LKR",
+            "range": "15k - 85k"
         },
         "PhD": {
             "duration": "3-5 years",
-            "fee": "200,000 LKR",
-            "range": "50,000/year (public) - 400,000+ total (private)"
+            "fee": "500,000 - 1,500,000 LKR (Research costs)",
+            "range": "500k - 1.5M"
         }
     },
     "notes": {
-        "source": "Researched Sri Lankan market data (2024-2026)",
+        "source": "Researched Sri Lankan market data (SLIIT/IIT/NIBM/OUSL 2026)",
         "currency": "LKR",
-        "last_updated": "2026-02-15"
+        "last_updated": "2026-02-27"
     }
 }
