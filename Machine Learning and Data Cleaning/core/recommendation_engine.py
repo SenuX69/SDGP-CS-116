@@ -217,6 +217,7 @@ class RecommendationEngine:
         # Load datasets
         self.jobs_df = pd.read_csv(jobs_path)
         self.courses_df = pd.read_csv(courses_path)
+        self.courses_df['source_file'] = 'professional'
         
         # Standardize main courses_df
         if not self.courses_df.empty:
@@ -231,6 +232,7 @@ class RecommendationEngine:
         if academic_path.exists():
             if self.show_progress: print(f"Loading academic courses ({academic_path.name})...")
             self.academic_df = pd.read_csv(academic_path)
+            self.academic_df['source_file'] = 'academic'
             # Ensure naming consistency
             if "course_title" not in self.academic_df.columns and "course_name" in self.academic_df.columns:
                 self.academic_df.rename(columns={"course_name": "course_title"}, inplace=True)
@@ -238,6 +240,16 @@ class RecommendationEngine:
                 self.academic_df.rename(columns={"institute": "provider"}, inplace=True)
         else:
             if self.show_progress: print(f"Warning: {academic_path} not found.")
+
+        # Load Salary Data
+        self.salary_mapping = {}
+        salary_cfg_path = Path(jobs_path).parent.parent / "config" / "salary_config.json"
+        if salary_cfg_path.exists():
+            try:
+                with open(salary_cfg_path, 'r') as f:
+                    self.salary_mapping = json.load(f)
+            except Exception:
+                pass
 
         #  Load Synthetic Jobs if available (Demo Enhancement)
         syn_jobs_path = Path(jobs_path).parent / "synthetic_jobs.csv"
@@ -311,13 +323,22 @@ class RecommendationEngine:
 
         #  Extract Market Skills (Critical for matching logic)
         self.market_skills = []
+        
+        # 1. Primary Source: ESCO Skills
+        if hasattr(self, 'esco_skills') and not self.esco_skills.empty:
+            self.market_skills = self.esco_skills['preferredLabel'].dropna().str.lower().tolist()
+        
+        # 2. Supplementary: Extracted from jobs (if available)
         if hasattr(self, 'jobs_df') and not self.jobs_df.empty and 'extracted_skills' in self.jobs_df.columns:
-            all_skills = []
+            job_skills = []
             for s in self.jobs_df['extracted_skills'].dropna():
                 if isinstance(s, str):
-                    all_skills.extend([sk.strip().lower() for sk in s.split(',')])
-            self.market_skills = list(set(all_skills))
+                    job_skills.extend([sk.strip().lower() for sk in s.split(',')])
+            self.market_skills = list(set(self.market_skills + job_skills))
         
+        # Remove duplicates and extremely short terms (e.g. "it", "at") to avoid noisy matching
+        self.market_skills = list(set([s for s in self.market_skills if isinstance(s, str) and len(s) > 3]))
+            
         #  Initialize Trend Analyzer
         try:
              # In cloud mode, courses_path might be None, but analyzer needs jobs data
@@ -471,19 +492,31 @@ class RecommendationEngine:
             self.job_embs = None
             self.job_titles_list = []
 
-    def get_salary_for_role(self, role_title):
-        """Retrieves salary range for a given role title (fuzzy match)"""
-        role_key = str(role_title).strip().lower()
-        
-        #  Exact Match
-        if role_key in self.salary_data:
-            return self.salary_data[role_key]
+    def get_salary_for_role(self, role_title, experience_level="Entry"):
+        """Retrieves salary range from config (fuzzy match)"""
+        if not hasattr(self, "salary_mapping") or not self.salary_mapping:
+            return "Data Not Available"
             
-        #  Fuzzy Match (Contained)
-        for key, val in self.salary_data.items():
-            if key in role_key or role_key in key:
-                return val
+        role_map = self.salary_mapping.get("roles", {})
+        role_key_raw = str(role_title).strip()
+        
+        # 1. Exact Match
+        if role_key_raw in role_map:
+            return role_map[role_key_raw].get(experience_level, "Data Not Available")
+            
+        # 2. Fuzzy Match (Contains)
+        role_key_lower = role_key_raw.lower()
+        for known_role, levels in role_map.items():
+            if known_role.lower() in role_key_lower or role_key_lower in known_role.lower():
+                return levels.get(experience_level, "Data Not Available")
                 
+        # 3. Sector Fallback
+        sectors = self.salary_mapping.get("sectors", {})
+        if any(kw in role_key_lower for kw in ["software", "developer", "engineer", "data", "it"]):
+            return sectors.get("IT", "Data Not Available")
+        if any(kw in role_key_lower for kw in ["account", "finance", "bank"]):
+            return sectors.get("Finance", "Data Not Available")
+            
         return "Data Not Available"
 
     def process_comprehensive_assessment(self, answers: Dict[str, Any]):
@@ -530,6 +563,8 @@ class RecommendationEngine:
         
         #  Semantic Intent (Open Prompts)
         prompts = [
+            norm_answers.get("career_background", ""),
+            norm_answers.get("interests", ""),
             norm_answers.get("q13", ""), # Proud project
             norm_answers.get("q14", ""), # Environment
             norm_answers.get("q15", ""), # Success outcome
@@ -538,9 +573,22 @@ class RecommendationEngine:
         full_text = " ".join([p for p in prompts if p])
         if full_text:
             vector["intent_embedding"] = self.model.encode(full_text).tolist()
-            # Extract keywords for skill matching
-            extracted = [s for s in self.market_skills if s.lower() in full_text.lower()]
-            vector["extracted_intent_skills"] = extracted
+            # Robust keyword extraction: check for presence of market skills
+            full_text_lower = full_text.lower()
+            extracted = []
+            
+            # Optimization: Pre-filter potential skills to avoid O(N*M) bottlenecks if market_skills is huge
+            # For public use, we check both exact and partial matches for critical terms
+            for s in self.market_skills:
+                s_low = s.lower()
+                # 1. Direct match
+                if s_low in full_text_lower:
+                    extracted.append(s)
+                # 2. Token-based match for longer skills (e.g. "software development" matches "developing software")
+                elif len(s_low) > 10 and all(word in full_text_lower for word in s_low.split() if len(word) > 3):
+                    extracted.append(s)
+                    
+            vector["extracted_intent_skills"] = sorted(list(set(extracted)))
         else:
             vector["intent_embedding"] = []
             vector["extracted_intent_skills"] = []
@@ -566,7 +614,7 @@ class RecommendationEngine:
         """
         #  Determine segment and user_level
         status_level = assessment_vector.get("status_level", 0)
-        segment = "Student" if status_level <= 1 else "Professional"
+        segment = "Student" if status_level <= 2 else "Professional"
         user_skills = assessment_vector.get("extracted_intent_skills", [])
         
         # Mapping user levels for better course query results
@@ -827,15 +875,14 @@ class RecommendationEngine:
             })
             
         # 4. Horizontal Transition (Always suggest alternatives)
-        # This adds variety (e.g. "DevOps" -> "SRE")
-        alternates = self.suggest_alternate_paths(current_role)
-        for alt in alternates[:2]:
+        alternates = self.suggest_alternate_paths(current_role, top_n=2)
+        for alt in alternates:
             progression.append({
-                "type": "Horizontal (Transition)",
-                "role": alt,
+                "type": "Horizontal (Pivot)",
+                "role": alt['title'],
                 "target_band": current_band,
-                "typical_years": "6-12 months",
-                "advice": "Leverage your existing skill overlap to switch domains."
+                "typical_years": "0-1 year (Transition)",
+                "advice": f"Leverage your existing skills in {alt['title']}. Similarity: {alt['similarity']*100:.1f}%"
             })
             
         return progression
@@ -1246,11 +1293,35 @@ class RecommendationEngine:
 
         #  Rationale (Why Recommended)
         why = []
-        if segment == "Student" and level == "Academic (Degree)": why.append("Core academic foundation")
-        if location and location.lower() in str(course.get("location", "")).lower(): why.append(f"Located in {location}")
-        for skill in skill_gap[:2]:
-            if skill.lower() in str(course["course_title"]).lower():
-                why.append(f"Teaches {skill}")
+        
+        # 1. Level fit
+        if segment == "Student" and "Academic" in level:
+            why.append("Strong academic foundation for entry-level")
+        elif segment == "Professional" and level == "Professional":
+            why.append("Fast-track upskilling for professionals")
+        
+        # 2. Skill coverage
+        matches = 0
+        for skill in skill_gap:
+            if matches >= 2: break
+            # Check title and (optionally) description if available
+            search_space = str(course["course_title"]).lower()
+            if "description" in course and pd.notna(course["description"]):
+                search_space += " " + str(course["description"]).lower()
+                
+            if skill.lower() in search_space:
+                why.append(f"Bridges gap in {skill}")
+                matches += 1
+                
+        # 3. Location/Provider
+        if location and location.lower() in str(course.get("location", "")).lower():
+            why.append(f"Conveniently located in {location}")
+        elif pd.notna(course.get("provider")) and similarity_score > 0.8:
+            why.append(f"High relevance from {course['provider']}")
+
+        # Final fallback if empty
+        if not why:
+            why.append("High semantic match to your career goals")
 
         return {
             "course_name": course["course_title"],
@@ -1317,13 +1388,8 @@ class RecommendationEngine:
         # This prevents the "cluttering" of the query
         query_skills = []
         #  ESCO Mapping & Gap Analysis
-        compulsory_skills, mapped_occ = self.get_skills_for_job(target_job)
-        optional_skills = [] # Fallback for now
-
-        user_skills_lower = [s.lower() for s in user_skills]
-        compulsory_gap = [s for s in compulsory_skills if s.lower() not in user_skills_lower]
-        optional_gap = []
-        skill_gap = compulsory_gap
+        compulsory_skills = compulsory_gap
+        optional_skills = optional_gap
 
         # Career Banding
         band = self.estimate_responsibility_band(user_skills)
@@ -1344,30 +1410,70 @@ class RecommendationEngine:
         query_emb = self.model.encode(query, convert_to_tensor=True)
         print(f"DEBUG: query_emb type = {type(query_emb)}")
 
-        #  SEMANTIC SEARCH - Professional Courses
-        print(f"DEBUG: self.course_embs type = {type(self.course_embs)}")
-        hits = util.semantic_search(query_emb, self.course_embs, top_k=top_n * 20)[0]
-        print(f"DEBUG: hits[0] type = {type(hits[0]) if hits else 'Empty'}")
-        recommendations = []
+        #  SEMANTIC SEARCH - Combined Dataset Approach
+        # We want a mix of Vocational (Professional) and Academic (Degrees)
+        all_candidate_recommendations = []
+        
+        # 1. Search Professional Courses
+        hits = util.semantic_search(query_emb, self.course_embs, top_k=top_n * 5)[0]
         for h in hits:
             course = self.courses_df.iloc[h["corpus_id"]]
             processed = self._process_one_course(course, h["score"], segment, user_level, location, max_budget, max_duration, skill_gap)
-            recommendations.append(processed)
+            all_candidate_recommendations.append(processed)
 
-        # SEMANTIC SEARCH - Academic (Degree) Programs (Supplementary)
-        academic_recommendations = []
+        # 2. Search Academic Courses
         if self.academic_embs is not None:
-            acad_hits = util.semantic_search(query_emb, self.academic_embs, top_k=top_n * 10)[0]
+            acad_hits = util.semantic_search(query_emb, self.academic_embs, top_k=top_n * 5)[0]
             for h in acad_hits:
                 course = self.academic_df.iloc[h["corpus_id"]]
                 processed = self._process_one_course(course, h["score"], segment, user_level, location, max_budget, max_duration, skill_gap)
-                # Apply Supplementary penalty
-                processed["relevance_score"] *= 0.6 
-                academic_recommendations.append(processed)
+                all_candidate_recommendations.append(processed)
 
-        # Sort and limit
-        recommendations = sorted(recommendations, key=lambda x: x['relevance_score'], reverse=True)[:top_n]
-        academic_recommendations = sorted(academic_recommendations, key=lambda x: x['relevance_score'], reverse=True)[:top_n]
+        # 3. Dynamic Selection Logic - Filter by relevance and user context
+        # Only keep results with decent score
+        all_candidate_recommendations = [r for r in all_candidate_recommendations if r['relevance_score'] > 0.25]
+        all_candidate_recommendations = sorted(all_candidate_recommendations, key=lambda x: x['relevance_score'], reverse=True)
+        
+        final_picks = []
+        seen_names = set()
+        
+        # Priority logic - Students get academic focus, Professionals get professional focus
+        if segment == "Student":
+            # Add academic first
+            for r in all_candidate_recommendations:
+                if r.get("source_file") == "academic" and r["course_name"] not in seen_names:
+                    final_picks.append(r)
+                    seen_names.add(r["course_name"])
+                    if len(final_picks) >= 3: break # Top 3 academic
+        else:
+            # Add professional first
+            for r in all_candidate_recommendations:
+                if r.get("source_file") == "professional" and r["course_name"] not in seen_names:
+                    final_picks.append(r)
+                    seen_names.add(r["course_name"])
+                    if len(final_picks) >= 3: break # Top 3 professional
+        
+        # Fill remaining slots with the best available from either source
+        for r in all_candidate_recommendations:
+            if r["course_name"] not in seen_names:
+                final_picks.append(r)
+                seen_names.add(r["course_name"])
+                if len(final_picks) >= top_n: break
+
+        # Main recommendations is the prioritized mix
+        recommendations = final_picks[:top_n]
+        
+        # Academic recommendations - provide a dedicated list of academic paths 
+        # but also fallback to mixed if academic data is sparse
+        academic_recommendations = [r for r in all_candidate_recommendations if r.get("source_file") == "academic"]
+        if len(academic_recommendations) < 3:
+            # If few academic, fill with top general courses to avoid empty sections
+            for r in all_candidate_recommendations:
+                if r not in academic_recommendations:
+                    academic_recommendations.append(r)
+                if len(academic_recommendations) >= top_n: break
+        
+        academic_recommendations = academic_recommendations[:top_n]
 
         #  JOB FETCHING
         job_list = []
@@ -1421,6 +1527,11 @@ class RecommendationEngine:
             }]
 
         #  FINAL BUNDLE
+        #  Splitting Roadmap for Backend/UI Clarity
+        all_progression = self.get_career_progression(target_job, band, user_skills, assessment_vector)
+        vertical_roadmap = [p for p in all_progression if "Vertical" in p.get("type", "")]
+        horizontal_roadmap = [p for p in all_progression if "Horizontal" in p.get("type", "")]
+        
         return {
             "status": "Incomplete" if skill_gap else "Complete",
             "mapped_occupation": mapped_occ,
@@ -1432,7 +1543,9 @@ class RecommendationEngine:
             "job_ideas": job_list if job_list else [{"job_title": "No specific openings found for this niche", "company": "Market Research Advised", "message": "Try broadening your role or location filters."}],
             "mentors": self.match_mentors(user_skills, target_job=target_job, top_n=3),
             "alternate_paths": self.suggest_alternate_paths(target_job),
-            "career_progression": self.get_career_progression(target_job, band, user_skills, assessment_vector),
+            "vertical_roadmap": vertical_roadmap,
+            "horizontal_roadmap": horizontal_roadmap,
+            "career_progression": all_progression, # Keep for backward compatibility
             "salary_estimate": self.get_salary_for_role(target_job),
             "readiness_score": self.calculate_readiness_score(user_skills, assessment_vector or {"status_level": 1 if segment=="Student" else 2, "experience_years": 0}, target_job),
             "action_plan": self.generate_action_plan(compulsory_gap, target_role=target_job),
@@ -1440,15 +1553,23 @@ class RecommendationEngine:
             "caveats": advice
         }
 
-    def suggest_alternate_paths(self, job_title):
-        # simplified version using esco similarity
+    def suggest_alternate_paths(self, job_title, top_n=3):
+        """Simplified version using esco similarity, returns detailed dictionaries"""
         job_emb = self.model.encode(job_title, convert_to_tensor=True)
-        hits = util.semantic_search(job_emb, self.esco_occ_embs, top_k=4)[0]
+        hits = util.semantic_search(job_emb, self.esco_occ_embs, top_k=top_n+1)[0]
         
         paths = []
-        for h in hits[1:]: # skip the first one as it's the target itself
+        for h in hits:
             alt_job = self.esco_occ.iloc[h["corpus_id"]]["preferredLabel"]
-            paths.append(alt_job)
+            # Skip the target job itself if it's the top match
+            if str(alt_job).lower() == str(job_title).lower():
+                continue
+            paths.append({
+                "title": alt_job,
+                "similarity": round(float(h["score"]), 3)
+            })
+            if len(paths) >= top_n:
+                break
         return paths
 
     def match_mentors(self, user_skills, target_job=None, top_n=3):
