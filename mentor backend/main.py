@@ -1,52 +1,20 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Depends
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, List
+from datetime import datetime
+import os, uuid
 
-app = FastAPI()
+from sqlalchemy import (
+    create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+)
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
-# --------- Root Test ---------
-@app.get("/")
-def home():
-    return {"message": "Mentor Backend Running 🚀"}
+# ---------------------------
+# App + Storage
+# ---------------------------
+app = FastAPI(title="Mentor Mentorship Backend (FastAPI)")
 
-
-# --------- Register Model ---------
-class RegisterUser(BaseModel):
-    name: str
-    email: str
-
-
-# --------- Register Endpoint ---------
-@app.post("/register")
-def register(user: RegisterUser):
-    return {
-        "message": "User Registered Successfully",
-        "name": user.name,
-        "email": user.email
-    }
-
-
-# --------- Mentor Suggestion Test ---------
-@app.get("/mentors")
-def get_mentors():
-    fake_mentors = [
-        {"id": 1, "name": "Mentor Alex", "skill": "Python"},
-        {"id": 2, "name": "Mentor Sarah", "skill": "Java"},
-        {"id": 3, "name": "Mentor Max", "skill": "Web Development"}
-    ]
-    return fake_mentors
-
-
-# --------- Booking Model ---------
-class Booking(BaseModel):
-    mentor_id: int
-    date: str
-
-
-# --------- Booking Endpoint ---------
-@app.post("/book")
-def book_session(booking: Booking):
-    return {
-        "message": "Booking Successful",
-        "mentor_id": booking.mentor_id,
-        "date": booking.date
-    }
+UPLOAD_DIR = "./storage/uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/static", StaticFiles(directory=UPLOAD_DIR), name="static")
