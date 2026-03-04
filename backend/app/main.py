@@ -33,14 +33,18 @@ def health_check():
 class RecommendRequest(BaseModel):
     target_role: str = Field(..., examples=["Software Engineer"])
     skills: List[str] = Field(default_factory=list, examples=[["python", "sql", "java"]])
-    interests: List[str] = Field(default_factory=list, examples=[["backend", "web development"]])
     top_n: int = Field(default=5, ge=1, le=20)
+
+class AnalyzeRequest(BaseModel):
+    target_job: str
+    answers: Dict[str, Any] # Full 18-point assessment answers
 
 # --- Load engine once (startup) ---
 try:
     engine = RecommendationEngine(
-        jobs_df_path=JOBS_CSV,
-        courses_df_path=COURSES_CSV,
+        jobs_path=JOBS_CSV,
+        courses_path=COURSES_CSV,
+        show_progress=False
     )
     startup_error = None
 except Exception as e:
@@ -62,17 +66,15 @@ def recommend(req: RecommendRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Engine not loaded: {startup_error}")
 
     jobs = engine.recommend_jobs(
+        user_skills=req.skills,
         target_role=req.target_role,
-        skills=req.skills,
-        interests=req.interests,
-        top_n=req.top_n,
+        top_n=req.top_n
     )
 
     courses = engine.recommend_courses(
-        target_role=req.target_role,
-        skills=req.skills,
-        interests=req.interests,
-        top_n=req.top_n,
+        target_job=req.target_role,
+        user_skills=req.skills,
+        top_n=req.top_n
     )
 
     return {
@@ -80,3 +82,22 @@ def recommend(req: RecommendRequest) -> Dict[str, Any]:
         "jobs": jobs,
         "courses": courses,
     }
+
+@app.post("/api/analyze")
+def analyze_assessment(req: AnalyzeRequest) -> Dict[str, Any]:
+    """
+    Comprehensive analysis based on 18-point assessment
+    """
+    if engine is None:
+        raise HTTPException(status_code=500, detail=f"Engine not loaded: {startup_error}")
+
+    try:
+        # 1. Process 18-point assessment into feature vector
+        vector = engine.process_comprehensive_assessment(req.answers)
+        
+        # 2. Generate full dashboard bundle
+        bundle = engine.get_recommendations_from_assessment(vector, req.target_job)
+        
+        return bundle
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

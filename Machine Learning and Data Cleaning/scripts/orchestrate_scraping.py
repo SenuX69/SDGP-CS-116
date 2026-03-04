@@ -175,8 +175,18 @@ def orchestrate():
                 logger.error("Pipeline finished but master data failed validation!")
         else:
             logger.warning(f"merge script not found: {merge_script}")
+
+        # 5. Regenerate model artifacts (.pt embedding cache) now that data is fresh
+        logger.info("="*50)
+        logger.info("REGENERATING MODEL ARTIFACTS (Embedding Cache)")
+        artifact_script = Path(__file__).parent / "generate_model_artifacts.py"
+        if artifact_script.exists():
+            run_scraper("ArtifactGenerator", artifact_script, [])
+            logger.info("Embedding cache updated — next engine load will be fast.")
+        else:
+            logger.warning(f"Artifact generator not found: {artifact_script}")
                 
-        # 5. summary
+        # 6. summary
         logger.info("="*50)
         logger.info("SCRAPING SUMMARY")
         if 'results' in locals():

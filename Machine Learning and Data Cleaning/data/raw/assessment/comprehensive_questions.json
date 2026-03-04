@@ -39,95 +39,97 @@
                 "purpose": "seniority_check"
             },
             {
-                "id": "major_subjects",
-                "question": "Which subjects/modules did you find most engaging during your studies?",
-                "options": [
-                    "Software Engineering / Programming",
-                    "Management / HR",
-                    "Finance / Accounting",
-                    "Graphic Design / UI-UX",
-                    "Marketing / Content",
-                    "Data Science / Math"
-                ],
-                "type": "multi_select",
-                "purpose": "interest_anchoring"
+                "id": "target_role",
+                "question": "What is your target role or dream job?",
+                "type": "open_text",
+                "purpose": "target_matching"
             }
         ],
-        "Responsibility_Scenarios": [
+        "Technical_and_Experience": [
             {
-                "id": "autonomy_scen",
-                "question": "When given a high-level goal from a manager without a detailed guide, how do you proceed?",
+                "id": "responsibility_level",
+                "question": "What is your highest level of responsibility held?",
                 "options": [
-                    "Wait for a detailed step-by-step checklist.",
-                    "Ask for a brief outline and research the execution myself.",
-                    "Plan the strategy, research tools, and propose a solution before starting.",
-                    "Coordinate the team's response and set the strategic direction."
+                    "Followed instructions",
+                    "Completed independent tasks",
+                    "Planned tasks",
+                    "Supervised others",
+                    "Managed outcomes / budgets"
                 ],
-                "purpose": "band_inference",
-                "weight": 1.5
+                "purpose": "seniority_inference"
             },
             {
-                "id": "problem_solving_scen",
-                "question": "If you discover a major error in a project that isn't your direct fault, your reaction is:",
-                "options": [
-                    "I ignore it as it's outside my assigned scope.",
-                    "I alert my supervisor and wait for their specific instructions.",
-                    "I report it and attempt to fix it to ensure project success.",
-                    "I organize a review to fix the root cause and prevent future occurrences."
-                ],
-                "purpose": "ownership_check",
-                "weight": 1.5
+                "id": "career_background",
+                "question": "Briefly describe your career background or technical bio:",
+                "type": "open_text",
+                "purpose": "skill_extraction"
+            },
+            {
+                "id": "key_achievements",
+                "question": "Mention a key project or achievement you are proud of:",
+                "type": "open_text",
+                "purpose": "intent_extraction"
             }
-        ]
-    },
-    "Optional": {
-        "Refinement": [
+        ],
+        "Behavioral_Scenarios": [
+            {
+                "id": "problem_solving",
+                "question": "When faced with an unexpected technical roadblock, you usually:",
+                "options": [
+                    "Wait for a senior to provide a solution.",
+                    "Search for similar issues and try common fixes.",
+                    "Analyze the root cause and propose a new approach.",
+                    "Collaborate with others to find the most efficient fix."
+                ],
+                "purpose": "behavioral_logic"
+            },
+            {
+                "id": "adaptability",
+                "question": "If project priorities change suddenly, how do you react?",
+                "options": [
+                    "Feel frustrated by the lack of stability.",
+                    "Follow the new directives strictly.",
+                    "Pivot my work quickly while documenting changes.",
+                    "Assess the impact on goals and align the team."
+                ],
+                "purpose": "resilience_check"
+            }
+        ],
+        "Constraints_and_Preferences": [
+            {
+                "id": "upskilling_budget",
+                "question": "What is your approximate budget for upskilling/courses?",
+                "options": [
+                    "< 50k",
+                    "50k-200k",
+                    "200k-500k",
+                    "500k+"
+                ],
+                "purpose": "budget_filtering"
+            },
+            {
+                "id": "weekly_availability",
+                "question": "How many hours per week can you dedicate to learning?",
+                "options": [
+                    "< 5 hours",
+                    "5-10 hours",
+                    "10-20 hours",
+                    "20+ hours"
+                ],
+                "purpose": "path_pacing"
+            },
             {
                 "id": "preferred_industry",
-                "question": "Is there a specific industry you are most interested in?",
+                "question": "Which industry are you most interested in?",
                 "options": [
                     "FinTech",
-                    "Healthcare / MedTech",
+                    "Healthcare",
                     "E-commerce",
-                    "GovTech",
+                    "Sustainability",
                     "Education",
                     "No preference"
                 ],
-                "purpose": "industry_filtering"
-            },
-            {
-                "id": "growth_preference",
-                "question": "What is your primary goal for upskilling right now?",
-                "options": [
-                    "Quick certification for immediate job readiness.",
-                    "Academic degree/diploma for long-term career stability.",
-                    "Gaining a specific niche technical skill.",
-                    "Developing leadership and management capabilities."
-                ],
-                "purpose": "recommendation_tuning"
-            },
-            {
-                "id": "work_mode",
-                "question": "What is your preferred mode of working?",
-                "options": [
-                    "Strictly On-site",
-                    "Hybrid (2-3 days office)",
-                    "Strictly Remote",
-                    "No preference"
-                ],
-                "purpose": "job_match_filtering"
-            },
-            {
-                "id": "education_type",
-                "question": "Which type of education are you currently looking for?",
-                "options": [
-                    "BSc / Undergraduate Degree",
-                    "MSc / Postgraduate Degree",
-                    "Professional Certification",
-                    "Diploma",
-                    "No preference"
-                ],
-                "purpose": "education_filtering"
+                "purpose": "sector_matching"
             }
         ]
     }

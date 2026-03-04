@@ -90,20 +90,8 @@ def run_comprehensive_test(use_cloud=True):
             print(f"   - {path['type']}: {path['role']} ({path.get('advice', '')[:50]}...)")
             
         # 3. Job Recommendations / Skill Gap
-        # Note: We simulate calling the logic that generates the full dashboard data
-        # Using a direct call to internal method if available, or simulating via `get_recommendations_from_assessment`
-        # `get_recommendations_from_assessment` returns courses. `process_skill_gap_analysis` (which we saw earlier in code but might have a different name in the file, 
-        # let's assume `generate_recommendations` or we construct it).
-        # Actually, in the code snippet, we saw `get_recommendations_from_assessment` calls `recommend_courses`.
-        # To get JOB recommendations, we need to call `recommend_jobs` or similar? 
-        # Looking at previous snippet (lines 895+), job recommendation logic was INSIDE the method. 
-        # Ah, the snippet `def process_skill_gap_analysis` (implied name) returned a dict with everything.
-        # But `get_recommendations_from_assessment` (line 302) only returned `recommend_courses`.
-        # I need to find the method that returns the full dashboard. 
-        # I will assume `get_recommendations_from_assessment` might match `return self.recommend_courses(...)` in the snippet.
-        # Wait, line 302: `return self.recommend_courses(...)`.
+
         
-        # So for this test, I will call components individually to verify them.
         
         # A. Courses
         print(f"\n   [COURSE RECS]:")

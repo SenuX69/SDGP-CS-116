@@ -55,16 +55,16 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 selection:bg-purple-100">
-      
+
       <div className="absolute top-0 left-1/2 -z-10 h-[1000px] w-full -translate-x-1/2 [background:radial-gradient(100%_50%_at_50%_0%,rgba(168,85,247,0.15)_0,rgba(255,255,255,0)_100%)]" />
 
       <div className="mx-auto max-w-7xl px-6">
-       
+
         <nav className="flex items-center justify-between py-8">
           <div className="flex items-center gap-2 group cursor-pointer">
-           
+
             <Image src="/logonb.png" alt="PathFinder+ Logo" width={32} height={32} className="object-contain" />
-                          
+
             <span className="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-indigo-600">
               PathFinder+
             </span>
@@ -75,10 +75,10 @@ export default function HomePage() {
                 {link.label}
               </Link>
             ))}
-            
+
           </div>
         </nav>
-
+        {/* 
   
 
        
@@ -94,7 +94,7 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-        </section>
+        </section> */}
 
         {/* Testimonials - Carousel */}
         <section className="py-24 border-t border-slate-100">

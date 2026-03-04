@@ -43,6 +43,7 @@
             "A/L Student": 0,
             "Undergraduate": 1,
             "Graduate": 2,
+            "Fresh Graduate": 2,
             "Professional Qualification Student": 2,
             "Working Professional": 3,
             "Career Break": 2,
@@ -51,9 +52,11 @@
         "experience": {
             "None": 0,
             "< 1 year": 1,
-            "1–3 years": 2,
-            "3–5 years": 3,
-            "5+ years": 4
+            "1-3 years": 2,
+            "3-5 years": 3,
+            "5-10 years": 4,
+            "5+ years": 4,
+            "10+ years": 5
         }
     }
 }

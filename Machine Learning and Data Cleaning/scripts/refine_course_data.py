@@ -8,7 +8,6 @@ from datetime import datetime
 # Configuration
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-INPUT_FILE = BASE_DIR / "data/raw/All_Courses.csv"
 OUTPUT_FILE = BASE_DIR / "data/processed/academic_courses_master.csv"
 
 # Market Researched Defaults (LKR and Days)

@@ -26,7 +26,8 @@ dist/
 
 # Project Specific Data Exclusions
 Machine Learning and Data Cleaning/data/raw/scrapers/
-Machine Learning and Data Cleaning/data/raw/*.csv
+Machine Learning and Data Cleaning/data/raw/**/*.csv
+Machine Learning and Data Cleaning/Project SeaLanka Implementation CS-40.pdf
 !Machine Learning and Data Cleaning/data/raw/esco/*.csv
 !Machine Learning and Data Cleaning/data/raw/assessment/*.json
 

@@ -7,7 +7,7 @@ import json
 ml_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(ml_root))
 
-from core.recommendation_engine import RecommendationEnginee
+from core.recommendation_engine import RecommendationEngine
 
 def clear_screen():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -54,7 +54,7 @@ def final_simulation():
 
     answers = {}
 
-    # --- PART 1: IDENTITY & STAGE ---
+    #  PART 1: IDENTITY & STAGE 
     clear_screen()
     print_header("PART 1: WHO ARE YOU?")
     
@@ -72,7 +72,7 @@ def final_simulation():
     answers["responsibility_level"] = get_choice("Your typical level of technical responsibility?",
         ["Followed instructions", "Completed independent tasks", "Planned tasks", "Supervised others", "Managed outcomes / budgets"])
 
-    # --- PART 2: ASPIRATIONS & SKILLS ---
+    #  PART 2: ASPIRATIONS & SKILLS 
     clear_screen()
     print_header("PART 2: CAREER GOALS & SKILL EXTRACTION")
     print("Answer briefly to help our AI profile your potential.")
@@ -132,7 +132,7 @@ def final_simulation():
         print("  - No major gaps detected! You are market-ready.")
 
     # 3. MARKET TRENDS
-    print(f"\n🚀 MARKET INSIGHTS FOR '{trends.get('field', 'General')}':")
+    print(f"\n MARKET INSIGHTS FOR '{trends.get('field', 'General')}':")
     top_skills = [s.upper() for s in list(trends.get('top_demanded_skills', {}).keys())[:4]]
     print(f"  HOT SKILLS : {', '.join(top_skills)}")
     segments = trends.get('segments', [])
@@ -140,27 +140,59 @@ def final_simulation():
         print(f"  DEMAND     : High in '{segments[0]['segment']}' and related roles.")
 
     # 4. COURSES (With Prices)
-    print("\n🎓 TOP LEARNING PATHS (BUDGET-MATCHED):")
-    for i, c in enumerate(courses_res.get('recommendations', [])[:3], 1):
+    print("\n PROFESSIONAL SKILL-GAP COURSES (QUICK UPSKILLING):")
+    for i, c in enumerate(courses_res.get('recommendations', [])[:8], 1): # Increased
         fee = c.get('fee', 'N/A')
         print(f"  {i}. {c['course_name']} [{c['provider']}]")
-        print(f"     Fee: {fee} | ROI Score: {c.get('roi_score', 0):.1f}")
+        print(f"     Fee: {fee} | Url: {c.get('url', '#')}")
         print(f"     Why: {c.get('why_recommended', '')[:80]}...")
 
-    # 5. CAREER PROGRESSION
-    print("\n🛤️ CAREER GROWTH MILESTONES:")
-    for i, p in enumerate(career_paths[:2], 1):
-        print(f"  - {p['type'].upper()}: {p['role']}")
-        print(f"    Advice: {p.get('advice', '')[:100]}...")
+    # 4b. ACADEMIC LEARNING PATHS (DIPLOMAS/DEGREES)
+    print("\n ACADEMIC LEARNING PATHS (LONG-TERM GAPS):")
+    acad = courses_res.get('academic_recommendations', [])
+    if acad:
+        for i, c in enumerate(acad[:8], 1): # Increased
+            fee = c.get('fee', 'N/A')
+            print(f"  {i}. {c['course_name']} [{c['provider']}]")
+            print(f"     Level: {c.get('level', 'Degree')} | Fee: {fee} | Url: {c.get('url', '#')}")
+            print(f"     Why: {', '.join(c.get('why_recommended', [])) if isinstance(c.get('why_recommended'), list) else c.get('why_recommended')}")
+    else:
+        print("  - No direct academic matches found for this specific gap.")
+
+    # 5. CAREER GROWTH MILESTONES (Roadmaps)
+    print("\n VERTICAL CAREER ROADMAP (Promotions):")
+    vert = courses_res.get('vertical_roadmap', [])
+    if vert:
+        for i, p in enumerate(vert[:5], 1):
+            print(f"  - {p['role']} (Typical: {p['typical_years']})")
+            print(f"    Advice: {p.get('advice', '')[:100]}...")
+    else:
+        print("  - Standard progression path applies.")
+
+    print("\n HORIZONTAL CAREER PIVOTS (Alternative Roles):")
+    horiz = courses_res.get('horizontal_roadmap', [])
+    if horiz:
+        for i, p in enumerate(horiz[:5], 1):
+            print(f"  - {p['role']}")
+            print(f"    Advice: {p.get('advice', '')[:100]}...")
+    else:
+        print("  - Highly specialized role; few horizontal pivots found.")
 
     # 6. JOB RECOMMENDATIONS (with Salary)
-    print("\n💼 SIMILAR JOB OPPORTUNITIES (PAYLAB INTEGRATED):")
+    print("\n SIMILAR JOB OPPORTUNITIES (PAYLAB INTEGRATED):")
     for i, j in enumerate(courses_res.get('job_ideas', [])[:3], 1):
         print(f"  {i}. {j['job_title']} at {j['company']}")
-        print(f"     Est. Salary: {j['estimated_salary']} | Gap: {j['skill_gap_pct']}%")
+        print(f"     Est. Salary: {j['estimated_salary']} | Link: {j.get('url', '#')}")
+
+    # 6b. 12-MONTH COACHING ROADMAP
+    print("\n 12-MONTH COACHING ROADMAP (MONTH-BY-MONTH):")
+    plan = courses_res.get('action_plan', [])
+    for item in plan:
+        print(f"  - {item['period']}: {item['focus']}")
+        print(f"    Milestone: {item['milestone']}")
 
     # 7. MENTORS
-    print("\n🤝 MENTOR MATCHES:")
+    print("\n MENTOR MATCHES:")
     for i, m in enumerate(mentors[:2], 1):
         print(f"  - {m['name']} ({m['specialization']}) at {m.get('company', 'Sri Lanka Tech')}")
 

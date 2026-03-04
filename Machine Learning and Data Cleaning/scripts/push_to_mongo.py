@@ -355,39 +355,48 @@ def main():
     if db is None:
         return
     
-    # Upload Jobs
-    if jobs_path.exists():
-        upload_jobs(db, jobs_path)
-    if synthetic_path.exists():
-        upload_synthetic_jobs(db, synthetic_path)
-    
-    # Upload Courses
-    if courses_path.exists():
-        upload_courses(db, courses_path) # Skill-gap courses
-    if academic_path.exists():
-        upload_academic_courses(db, academic_path) # Degree courses
-    if matrix_path.exists():
-        upload_skill_matrix(db, matrix_path)
-    
-    # Upload Salary & Configs
-    if paylab_path.exists():
-        upload_salary_data(db, paylab_path)
-    upload_configs(db, config_dir, raw_dir)
-    
-    # Upload Metadata
-    if mentors_path.exists():
-        upload_mentors(db, mentors_path)
-    if progressions_path.exists():
-        upload_career_paths(db, progressions_path)
-    if internships_path.exists():
-        upload_internships(db, internships_path)
-    
-    # Upload ESCO (New)
-    esco_dir = raw_dir / "esco"
-    if esco_dir.exists():
-        upload_esco(db, esco_dir)
-    
-    print("\nMongoDB upload complete!")
+    try:
+        # Upload Jobs
+        if jobs_path.exists():
+            upload_jobs(db, jobs_path)
+        if synthetic_path.exists():
+            upload_synthetic_jobs(db, synthetic_path)
+        
+        # Upload Courses
+        if courses_path.exists():
+            upload_courses(db, courses_path) # Skill-gap courses
+        if academic_path.exists():
+            upload_academic_courses(db, academic_path) # Degree courses
+        if matrix_path.exists():
+            upload_skill_matrix(db, matrix_path)
+        
+        # Upload Salary & Configs
+        if paylab_path.exists():
+            upload_salary_data(db, paylab_path)
+        upload_configs(db, config_dir, raw_dir)
+        
+        # Upload Metadata
+        if mentors_path.exists():
+            upload_mentors(db, mentors_path)
+        if progressions_path.exists():
+            upload_career_paths(db, progressions_path)
+        if internships_path.exists():
+            upload_internships(db, internships_path)
+        
+        # Upload ESCO 
+        esco_dir = raw_dir / "esco"
+        if esco_dir.exists():
+            upload_esco(db, esco_dir)
+
+        print("\nMongoDB upload complete!")
+
+    except KeyboardInterrupt:
+        print("\n\n Process stopped by user.")
+        print(" Some data may have been partially uploaded. Run again to sync remaining records.")
+    except Exception as e:
+        print(f"\n Critical failure: {e}")
+    finally:
+        print("\n MongoDB Connection Closed.")
 
 if __name__ == "__main__":
     main()

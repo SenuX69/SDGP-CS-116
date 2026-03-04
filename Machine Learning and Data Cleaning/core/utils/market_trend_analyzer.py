@@ -117,7 +117,12 @@ class MarketTrendAnalyzer:
         
         # 3. Custom Stop Words for better NLP quality
         from sklearn.feature_extraction import text
-        custom_stop = ["job", "save", "sri", "lanka", "executive", "company", "limited", "pvt", "apply", "requirements", "years", "experience", "skills", "salary"]
+        custom_stop = [
+            "job", "save", "sri", "lanka", "executive", "company", "limited", "pvt", 
+            "apply", "requirements", "years", "experience", "skills", "salary", 
+            "location", "full", "time", "part", "work", "looking", "candidate",
+            "qualifications", "degree", "diploma", "knowledge", "ability"
+        ]
         stop_words = text.ENGLISH_STOP_WORDS.union(custom_stop)
         
         trend_summary = []
@@ -125,14 +130,19 @@ class MarketTrendAnalyzer:
             cluster_data = field_df[field_df['cluster'] == i]
             
             # Use combined_text for keywords to be more descriptive
-            vectorizer = TfidfVectorizer(stop_words=list(stop_words), max_features=5)
+            vectorizer = TfidfVectorizer(stop_words=list(stop_words), max_features=8)
             tfidf_matrix = vectorizer.fit_transform(cluster_data['combined_text'].fillna(''))
             keywords = vectorizer.get_feature_names_out()
             
-            common_titles = cluster_data['title'].value_counts().head(2).index.tolist()
+            common_titles = cluster_data['title'].value_counts().head(3).index.tolist()
+            
+            # Refine segment naming logic: Use the most common but specific title
+            segment_name = common_titles[0] if common_titles else "General Segment"
+            if "executive" in segment_name.lower() and len(common_titles) > 1:
+                segment_name = common_titles[1] # Try 2nd title if 1st is generic 'Executive'
             
             trend_summary.append({
-                "segment": common_titles[0] if common_titles else "General Segment",
+                "segment": segment_name,
                 "roles": common_titles,
                 "demand": len(cluster_data),
                 "skills": [k.upper() for k in keywords.tolist()]
