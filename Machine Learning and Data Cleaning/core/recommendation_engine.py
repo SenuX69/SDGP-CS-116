@@ -13,6 +13,16 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 
+# ── Hybrid ML Layer (RF + GBM + KNN — sits alongside SBERT)
+# Graceful import: engine works in SBERT-only mode if ml_classifier is absent
+try:
+    from .ml_classifier import HybridMLLayer
+except (ImportError, ValueError):
+    try:
+        from ml_classifier import HybridMLLayer
+    except ImportError:
+        HybridMLLayer = None  # fallback: SBERT-only mode
+
 try:
     from PIL import Image
     import pytesseract
@@ -31,6 +41,18 @@ except (ImportError, ValueError):
         sys.path.append(str(Path(__file__).parent / "utils"))
         from market_trend_analyzer import MarketTrendAnalyzer
 
+# Phase 10: Modular Logic Imports
+try:
+    from .logic.rule_engine import RuleEngine
+    from .logic.analytics import Analytics
+    from .logic.recommenders import Recommender
+    from .logic.action_plan import ActionPlanGenerator
+except (ImportError, ValueError):
+    from logic.rule_engine import RuleEngine
+    from logic.analytics import Analytics
+    from logic.recommenders import Recommender
+    from logic.action_plan import ActionPlanGenerator
+
 
 class RecommendationEngine:
     def __init__(self, jobs_path=None, courses_path=None, esco_dir=None, models_dir=None, force_refresh=False, show_progress=True, from_mongo=False):
@@ -38,7 +60,7 @@ class RecommendationEngine:
         self.ml_root = Path(__file__).resolve().parent.parent
         self.show_progress = show_progress
         
-        #State Initialization 
+        # State Initialization 
         self.jobs_df = pd.DataFrame()
         self.courses_df = pd.DataFrame()
         self.academic_df = pd.DataFrame()
@@ -48,12 +70,34 @@ class RecommendationEngine:
         self.occ_skill_rel = pd.DataFrame(columns=["occupationUri", "skillUri", "relationType"])
         self.broader_occ = pd.DataFrame(columns=["conceptUri", "broaderUri"])
         self.mentors_data = []
-        self.salary_data = {}
+        self.salary_mapping = {"roles": {}, "sectors": {}}
         self.pricing_config = {}
         self.assessment_config = {}
-        self.assessment_questions = {}
         self.market_skills = []
         self._trend_cache = {}
+
+        # ── Phase 10: Modular Logic Initialisation (Broken to Parts) ──
+        self.rule_engine = RuleEngine()
+        self.analytics = Analytics()
+        self.recommender = Recommender(self)
+        self.action_plan_gen = ActionPlanGenerator()
+
+        # Shortcuts for backward compatibility or internal use
+        self.domain_clusters = self.rule_engine.DOMAIN_CLUSTERS
+        self.edu_levels = self.rule_engine.EDU_LEVELS
+
+        # ── Phase 8: High-Confidence Academic Mappings (Sri Lanka) ──
+        self.production_academic_programs = [
+            {"level": "Bachelor", "course_name": "BSc in Data Science / Analytics", "provider": "SLIIT / NSBM / Open University", "duration": "3-4 years", "domain": "IT", "focus": ["SQL", "Statistics", "BI", "Visualization"], "notes": "Full academic pathway for career switchers", "url": "https://www.sliit.lk/computing/programmes/bsc-hons-in-information-technology-specializing-in-data-science/"},
+            {"level": "Diploma", "course_name": "Diploma in Data Analytics", "provider": "National ICT Academy", "duration": "6 months", "domain": "IT", "focus": ["Analytics", "SQL"], "notes": "Fast-track entry into Data Science", "url": "https://www.nibm.lk/programmes/advanced-descriptor-in-data-science/"},
+            {"level": "Postgraduate", "course_name": "MSc in Data Science", "provider": "UoM / UoC / Coursera", "duration": "1.5-2 years", "domain": "IT", "focus": ["Mastery", "Research"], "notes": "High credibility for career pivot", "url": "https://uom.lk/courses/msc-data-science-ai"},
+            {"level": "Professional", "course_name": "Google Data Analytics Certificate", "provider": "Coursera", "duration": "6 months", "domain": "IT", "focus": ["Portfolio", "Skills"], "notes": "Practical transition certificate", "url": "https://www.coursera.org/professional-certificates/google-data-analytics"},
+            
+            {"level": "Bachelor", "course_name": "BSc in Marketing / Business Admin", "provider": "NSBM / UoC / SLIIT", "duration": "3-4 years", "domain": "Marketing", "focus": ["Analytics", "Content"], "notes": "Foundational creative marketing degree", "url": "https://www.sliit.lk/business/programmes/bba-special-honours-degree-in-marketing-management/"},
+            {"level": "Postgraduate", "course_name": "MSc in Digital Marketing / MBA", "provider": "SLIIT / UoC / UK (Online)", "duration": "1-2 years", "domain": "Marketing", "focus": ["Leadership", "Strategy"], "notes": "Upskilling for senior leadership", "url": "https://www.nsbm.ac.lk/postgraduate/msc-in-business-analytics/"},
+            {"level": "Diploma", "course_name": "Digital Marketing Diploma", "provider": "SLIM (Sri Lanka Institute of Marketing)", "duration": "6 months", "domain": "Marketing", "focus": ["Campaigns", "Readiness"], "notes": "High industry recognition in Sri Lanka", "url": "https://slim.lk/diploma-in-digital-marketing/"},
+            {"level": "Professional", "course_name": "Google Digital Marketing Certificate", "provider": "HubSpot / Coursera", "duration": "6 months", "domain": "Marketing", "focus": ["Simulations", "Ads"], "notes": "Practical campaign skills", "url": "https://www.coursera.org/professional-certificates/google-digital-marketing-ecommerce"}
+        ]
         
         #  Heavy Model Loading
         try:
@@ -177,7 +221,7 @@ class RecommendationEngine:
             self.academic_df = pd.DataFrame(columns=["course_title", "provider", "category", "description"])
             self.mentors_data = []
             self.career_progressions_df = pd.DataFrame()
-            self.salary_data = {}
+            self.salary_mapping = {"roles": {}, "sectors": {}}
             self.pricing_config = {}
             self.assessment_config = {}
             self.assessment_questions = {}
@@ -196,7 +240,7 @@ class RecommendationEngine:
             self.academic_df = pd.DataFrame()
             self.mentors_data = []
             self.career_progressions_df = pd.DataFrame()
-            self.salary_data = {}
+            self.salary_mapping = {"roles": {}, "sectors": {}}
             self.pricing_config = {}
             self.assessment_config = {}
             self.esco_occ = pd.DataFrame(columns=["preferredLabel", "conceptUri"])
@@ -383,6 +427,27 @@ class RecommendationEngine:
         #  Load or Build Embeddings
         self._load_or_build_embeddings(models_path, force_refresh, courses_path)
 
+        # ── Load / Train Hybrid ML Layer ──────────────────────────────────────
+        # Augments SBERT with structured ML signal (RF + GBM + KNN)
+        self.ml_layer = None
+        if HybridMLLayer is not None:
+            try:
+                ml = HybridMLLayer(models_dir=models_path)
+                loaded = ml.load()  # Try to load pre-trained models
+                if not loaded:
+                    if self.show_progress:
+                        print("[HybridML] Pre-trained models not found — training now...")
+                    ml.train(verbose=self.show_progress)
+                    ml.save()
+                else:
+                    if self.show_progress:
+                        print(f"[HybridML] ✓ Loaded: {ml}")
+                self.ml_layer = ml
+            except Exception as e:
+                if self.show_progress:
+                    print(f"[HybridML] ⚠ Could not init ML layer: {e} — SBERT-only mode.")
+                self.ml_layer = None
+
     def _load_or_build_embeddings(self, models_path, force_refresh, courses_path):
         """Logic moved from legacy init into a dedicated method."""
         # Ensure courses_path is string-safe for filename generation
@@ -561,102 +626,131 @@ class RecommendationEngine:
             
         return {}
 
+    def _infer_domain(self, text: str) -> str:
+        """Delegated to Phase 10 RuleEngine."""
+        return self.rule_engine.infer_domain(text)
+
+    def calculate_local_demand_score(self, domain: str) -> float:
+        """Delegated to Phase 10 Analytics."""
+        return self.analytics.calculate_local_demand_score(domain, self.jobs_df, self.salary_mapping, self.rule_engine)
+
     def process_comprehensive_assessment(self, answers: Dict[str, Any]):
         """
-        Processes the new 12-point comprehensive assessment into a Feature Vector for ML.
+        Processes the assessment into a Feature Vector for the Rule Engine.
         """
         vector = {}
-        # Normalize strings
-        norm_answers = {k: str(v).replace('–', '-').replace('—', '-') if isinstance(v, str) else v for k, v in answers.items()}
+        # Normalize strings and handle specific characters
+        norm_answers = {k: str(v).replace('–', '-').replace('—', '-').strip() if isinstance(v, str) else v for k, v in answers.items()}
         
-        # 1. Base Levels (Status, Education, Experience)
-        status_map = self.assessment_config.get("mapping", {}).get("status", {
-            "Student": 0, "Intern / Trainee": 0.5, "Entry-level Professional": 1, 
-            "Experienced Professional": 2, "Career Switcher": 3
-        })
-        status = norm_answers.get("career_stage", "Student")
-        vector["status_level"] = status_map.get(status, 1)
-        
-        experience_map = self.assessment_config.get("mapping", {}).get("experience", {
+        # 1. Experience Years (Absolute mapped values)
+        experience_map = {
             "0 (None)": 0, "1-2 years": 1.5, "3-5 years": 4, "6-10 years": 8, "10+ years": 12
-        })
+        }
         experience = norm_answers.get("experience_years", "0 (None)")
         vector["experience_years"] = experience_map.get(experience, 0)
         
         # 2. Responsibility Band (0-4)
         resp_level = norm_answers.get("responsibility_level", "Followed instructions")
         band_map = {
-            "Followed instructions": 0,
-            "Completed independent tasks": 1,
-            "Planned tasks": 2,
-            "Supervised others": 3,
-            "Managed outcomes / budgets": 4
+            "Followed instructions": 0, "Completed independent tasks": 1, "Planned tasks": 2, 
+            "Supervised others": 3, "Managed outcomes / budgets": 4
         }
         vector["responsibility_band"] = band_map.get(resp_level, 0)
         
-        # 3. Behavioral Scores (Standardized 0-3)
-        # Using a simplified scoring since q7-q12 are now specific scenarios
-        logic = self.assessment_config.get("assessment_logic", {})
+        # 3. Highest Education (0-6)
+        edu_str = norm_answers.get("highest_education", "O/L or School Level").lower()
+        vector["highest_education"] = edu_str
+        edu_val = 1
+        for k, v in self.edu_levels.items():
+            if k in edu_str: edu_val = max(edu_val, v)
+        vector["education_level"] = edu_val
         
-        # Mapping new scenario answers to A/B/C/D for compatibility with old scoring if needed
-        # Or direct mapping:
-        behavioral_answers = {
-            "problem_solving": norm_answers.get("problem_solving"),
-            "adaptability": norm_answers.get("adaptability")
+        # 4. Status Level (0-3)
+        # 0: Student, 1: Uni/Graduate, 2: Professional, 3: Switcher
+        status_raw = norm_answers.get("current_status", "Student / School Leaver")
+        status_map = {
+            "Student / School Leaver": 0, "University Student": 1, 
+            "Working Professional": 2, "Career Switcher": 3
         }
+        vector["status_level"] = status_map.get(status_raw, 0)
         
-        # Explicitly pass highest education for course recommendation tuning
-        vector["highest_education"] = norm_answers.get("highest_education", "Unknown")
+        # 5. Domain Inference (Lock-in)
+        vector["target_role"] = norm_answers.get("target_role", "General")
+        vector["domain"] = self._infer_domain(vector["target_role"])
         
-        # Default scenario scoring (0: Basic, 1: Process, 2: Strategic, 3: Leadership)
-        def score_scenario(val):
-            if not val: return 1
-            low = val.lower()
-            if any(x in low for x in ["wait", "frustrated"]): return 0
-            if any(x in low for x in ["search", "follow", "directives"]): return 1
-            if any(x in low for x in ["analyze", "pivot", "documenting"]): return 2
-            if any(x in low for x in ["collaborate", "align", "impact"]): return 3
-            return 1
-
-        vector["problem_solving_score"] = score_scenario(behavioral_answers["problem_solving"])
-        vector["adaptability_score"] = score_scenario(behavioral_answers["adaptability"])
-        
-        # Dummy values for remaining behavioral scores to maintain vector shape if needed by models
-        vector["decision_making_score"] = 1
-        vector["leadership_score"] = 1
-        vector["initiative_score"] = 1
-        vector["conflict_score"] = 1
-        
-        # 4. Semantic Intent (Open Prompts)
-        prompts = [
-            norm_answers.get("career_background", ""),
-            norm_answers.get("key_achievements", ""),
-            norm_answers.get("target_role", "")
-        ]
-        full_text = " ".join([p for p in prompts if p])
-        if full_text:
+        # 6. Skill Extraction (With Domain Guard)
+        full_text = f"{norm_answers.get('self_bio', '')} {norm_answers.get('ideal_workday', '')} {vector['target_role']}"
+        if full_text.strip():
             vector["intent_embedding"] = self.model.encode(full_text).tolist()
-            # Robust keyword extraction
+            
+            # Rule Engine Blacklist (Hallucination Prevention)
+            blacklist = [
+                "air traffic management", "cad software", "cam software", "cae software", 
+                "technical drawing", "traffic management", "aerospace", "mechanical drawing"
+            ]
+            
             full_text_lower = full_text.lower()
             extracted = []
             
             for s in self.market_skills:
-                s_low = s.lower()
-                if s_low in full_text_lower:
-                    extracted.append(s)
-                elif len(s_low) > 10 and all(word in full_text_lower for word in s_low.split() if len(word) > 3):
-                    extracted.append(s)
-                    
+                s_low = s.lower().strip()
+                if len(s_low) < 5 or s_low in blacklist:
+                    continue
+                
+                # Rule: Check against Hallucination Blacklist
+                if any(b in s_low for b in RuleEngine.HALLUCINATION_BLACKLIST):
+                    continue
+
+                # Rule: No cross-domain skills (e.g. Nursing for IT)
+                s_domain = self.rule_engine.infer_domain(s_low)
+                if vector["domain"] != "General" and s_domain != "General" and s_domain != vector["domain"]:
+                    continue
+
+                words = s_low.split()
+                if len(words) == 1:
+                    if re.search(r'\b' + re.escape(s_low) + r'\b', full_text_lower):
+                        extracted.append(s)
+                else:
+                    meaningful = [w for w in words if len(w) > 3]
+                    if meaningful and all(re.search(r'\b' + re.escape(w) + r'\b', full_text_lower) for w in meaningful):
+                        extracted.append(s)
+            
             vector["extracted_intent_skills"] = sorted(list(set(extracted)))
         else:
             vector["intent_embedding"] = []
             vector["extracted_intent_skills"] = []
 
-        # 5. Constraints
+        # 7. Constraints
         vector["budget_category"] = norm_answers.get("upskilling_budget", "< 50k")
         vector["time_commitment"] = norm_answers.get("weekly_availability", "5-10 hours")
-        vector["preferred_industry"] = norm_answers.get("preferred_industry", "No preference")
+        vector["education_preference"] = norm_answers.get("education_preference", "None")
+
+        # 8. Normalized Soft Skills for UI (0-100)
+        ps_map = {
+            "Search for similar issues and try common fixes": 40,
+            "Analyze the root cause and propose a new approach": 70,
+            "Collaborate with others to find the most efficient fix": 90,
+            "Escalate immediately": 20
+        }
+        ad_map = {
+            "Follow the new directives strictly": 50,
+            "Pivot quickly while documenting the change": 80,
+            "Assess the impact on goals and align the team": 90,
+            "Resist changes that disrupt workflow": 20
+        }
         
+        ps_val = norm_answers.get("problem_solving", "Search for similar issues and try common fixes")
+        ad_val = norm_answers.get("adaptability", "Follow the new directives strictly")
+        
+        # Estimate teamwork based on problem solving choice
+        teamwork_val = 80 if "Collaborate" in ps_val else 50
+        
+        vector["normalized_soft_skills"] = {
+            "problem_solving": ps_map.get(ps_val, 50),
+            "adaptability": ad_map.get(ad_val, 50),
+            "teamwork": teamwork_val
+        }
+
         return vector
 
     def _should_recommend_internships(self, assessment_vector: Dict[str, Any]) -> bool:
@@ -668,77 +762,168 @@ class RecommendationEngine:
 
     def get_recommendations_from_assessment(self, assessment_vector: Dict[str, Any], target_job: str):
         """
-        Entry point for the new Assessment-driven recommendation logic.
-        gives a complete Dashboard Bundle for UI/Chatbot display.
+        Phase 7: Production Entry Point.
+        Returns a complete Dashboard Bundle via the Expert Rule Engine.
         """
-        #  Determine segment and user_level
+        # 1. Base Context
         status_level = assessment_vector.get("status_level", 0)
-        segment = "Student" if status_level <= 2 else "Professional"
+        segment = "Student" if status_level <= 1 else "Professional"
         user_skills = assessment_vector.get("extracted_intent_skills", [])
         
-        # Mapping user levels for better course query results
+        # 2. Level Mapping
         user_level = "Entry"
-        if status_level == 0: user_level = "O/L or School Level"
-        elif status_level == 1: user_level = "A/L or Undergraduate"
-        elif status_level == 2: user_level = "Professional"
-        elif status_level >= 3: user_level = "Senior / Expert"
+        if status_level == 0: user_level = "School Level"
+        elif status_level == 1: user_level = "Undergraduate/Graduate"
+        elif status_level >= 2: user_level = "Professional"
 
-        #  Parse Constraints
-        budget_str = str(assessment_vector.get("budget_category", "")).replace("–", "-")
+        # 3. Budget Parsing
+        budget_str = str(assessment_vector.get("budget_category", "< 50k")).replace("–", "-")
         budget_map = {"< 50k": 50000, "50k-200k": 200000, "200k-500k": 500000, "500k+": 2000000}
-        max_budget = budget_map.get(budget_str)
+        max_budget = budget_map.get(budget_str, 50000)
         
-        #  Fetch Components
-        # Use specific preference mapping
-        pref = assessment_vector.get("education_preference")
-        if not pref or pref == "None":
-            if status_level == 0: pref = "Diploma"
-            elif status_level == 1: pref = "BSc"
-            elif status_level >= 2: pref = "MSc"
-
-        courses = self.recommend_courses(
+        # 4. Fetch Components via Rule Engine
+        courses_res = self.recommend_courses(
             user_skills=user_skills,
             target_job=target_job,
             user_level=user_level,
             segment=segment,
-            preference=pref,
+            preference=assessment_vector.get("education_preference"),
             max_budget=max_budget,
             top_n=5,
-            assessment_vector=assessment_vector  # Pass full context
+            assessment_vector=assessment_vector
         )
-        return courses
+        
+        jobs = self.recommend_jobs(user_skills, target_job, top_n=5)
+        mentors = self.match_mentors(user_skills, target_job, top_n=3, assessment_vector=assessment_vector)
+        cri = self.calculate_readiness_score(user_skills, assessment_vector, target_job)
+        trends = self.get_personalized_market_trends(target_job)
+        
+        # 5. Assemble Bundle
+        bundle = {
+            "mapped_occupation": courses_res.get("mapped_occupation", target_job),
+            "career_readiness": cri,
+            "skill_gap": courses_res.get("skill_gap", []),
+            "recommendations": courses_res.get("recommendations", []),
+            "academic_recommendations": courses_res.get("academic_recommendations", []),
+            "jobs": jobs,
+            "salary_intelligence": self._get_salary_intelligence(assessment_vector.get("domain", "General"), user_level),
+            "mentors": mentors,
+            "market_trends": trends,
+            "career_roadmap": self._get_career_roadmap(assessment_vector.get("domain", "General")),
+            "action_plan": self.generate_action_plan(courses_res.get("skill_gap", []), target_job, assessment_vector)
+        }
+        
+        # 6. Final Production Guard
+        return self.validate_output(bundle, assessment_vector)
+
+    def _get_salary_intelligence(self, domain: str, seniority: str) -> Dict[str, Any]:
+        """Provides simulated local Paylab salary intelligence based on domain and seniority."""
+        salary_matrix = {
+            "IT": {
+                "School Level": {"min": 30000, "avg": 45000, "max": 75000},
+                "Entry": {"min": 80000, "avg": 120000, "max": 250000},
+                "Professional": {"min": 250000, "avg": 450000, "max": 800000},
+            },
+            "Healthcare": {
+                "School Level": {"min": 25000, "avg": 35000, "max": 50000},
+                "Entry": {"min": 45000, "avg": 75000, "max": 120000},
+                "Professional": {"min": 120000, "avg": 250000, "max": 600000},
+            },
+            "Marketing": {
+                "School Level": {"min": 20000, "avg": 35000, "max": 50000},
+                "Entry": {"min": 60000, "avg": 90000, "max": 180000},
+                "Professional": {"min": 180000, "avg": 350000, "max": 700000},
+            },
+            "Finance": {
+                "School Level": {"min": 25000, "avg": 40000, "max": 60000},
+                "Entry": {"min": 70000, "avg": 110000, "max": 200000},
+                "Professional": {"min": 200000, "avg": 400000, "max": 900000},
+            },
+            "General": {
+                "School Level": {"min": 20000, "avg": 30000, "max": 45000},
+                "Entry": {"min": 50000, "avg": 80000, "max": 150000},
+                "Professional": {"min": 150000, "avg": 250000, "max": 500000},
+            }
+        }
+        
+        domain_data = salary_matrix.get(domain, salary_matrix["General"])
+        
+        seniority_cat = "Professional"
+        if "Entry" in seniority or "Undergraduate" in seniority or "Graduate" in seniority:
+            seniority_cat = "Entry"
+        elif "School" in seniority:
+            seniority_cat = "School Level"
+            
+        return {
+            "source": "Paylab Sri Lanka Local Estimate",
+            "currency": "LKR/Month",
+            "domain": domain,
+            "seniority_tier": seniority_cat,
+            "min_salary": domain_data[seniority_cat]["min"],
+            "avg_salary": domain_data[seniority_cat]["avg"],
+            "max_salary": domain_data[seniority_cat]["max"]
+        }
+
+    def _get_career_roadmap(self, domain: str) -> List[Dict[str, Any]]:
+        """Provides heuristic vertical and horizontal career progression for the roadmap."""
+        roadmaps = {
+            "IT": [
+                {"title": "Senior Developer", "type": "Vertical", "similarity": 0.9},
+                {"title": "Software Architect", "type": "Vertical", "similarity": 0.8},
+                {"title": "Product Manager (Tech)", "type": "Horizontal", "similarity": 0.7},
+                {"title": "DevOps Engineer", "type": "Horizontal", "similarity": 0.75}
+            ],
+            "Healthcare": [
+                {"title": "Senior Nurse / Ward Manager", "type": "Vertical", "similarity": 0.9},
+                {"title": "Nurse Practitioner", "type": "Vertical", "similarity": 0.85},
+                {"title": "Clinical Research Coordinator", "type": "Horizontal", "similarity": 0.7},
+                {"title": "Healthcare Administrator", "type": "Horizontal", "similarity": 0.65}
+            ],
+            "Marketing": [
+                {"title": "Marketing Manager", "type": "Vertical", "similarity": 0.9},
+                {"title": "Growth Lead", "type": "Vertical", "similarity": 0.8},
+                {"title": "Data Analyst (Marketing)", "type": "Horizontal", "similarity": 0.75},
+                {"title": "PR / Communications Specialist", "type": "Horizontal", "similarity": 0.7}
+            ],
+            "Finance": [
+                {"title": "Senior Accountant / Auditor", "type": "Vertical", "similarity": 0.9},
+                {"title": "Financial Controller", "type": "Vertical", "similarity": 0.8},
+                {"title": "Risk Analyst", "type": "Horizontal", "similarity": 0.75},
+                {"title": "Investment Consultant", "type": "Horizontal", "similarity": 0.7}
+            ]
+        }
+        return roadmaps.get(domain, roadmaps["IT"])
 
     def recommend_jobs(self, user_skills, target_role, top_n=5):
-        """Matches users to real-time job openings from the database."""
-        if self.jobs_df.empty or not hasattr(self, 'job_embs') or self.job_embs is None:
+        """Matches users to real-time job openings from the database with domain fallback."""
+        if self.jobs_df is None or self.jobs_df.empty:
              return []
         
-        try:
-            # . Build Query text
-            query = f"{target_role} " + " ".join(user_skills[:5])
-            query_emb = self.model.encode(query, convert_to_tensor=True)
-            
-            # Semantic Search
-            hits = util.semantic_search(query_emb, self.job_embs, top_k=top_n*2)[0]
-            
-            results = []
-            for hit in hits:
-                idx = hit['corpus_id']
-                if idx >= len(self.jobs_df): continue
-                job = self.jobs_df.iloc[idx]
+        # 1. Try SBERT Semantic Search
+        if hasattr(self, 'job_embs') and self.job_embs is not None:
+            try:
+                query = f"{target_role} " + " ".join(user_skills[:5])
+                query_emb = self.model.encode(query, convert_to_tensor=True)
+                hits = util.semantic_search(query_emb, self.job_embs, top_k=top_n*2)[0]
                 
-                results.append({
-                    "job_title": job["title"],
-                    "company": job.get("company", "Confidential"),
-                    "location": job.get("location", "Sri Lanka"),
-                    "link": job.get("job_url", "#"),
-                    "relevance_score": round(float(hit['score']) * 100, 1)
-                })
-                
-            return results[:top_n]
-        except Exception as e:
-            if self.show_progress: print(f"Error matching jobs: {e}")
-            return []
+                results = []
+                for hit in hits:
+                    idx = hit['corpus_id']
+                    if idx >= len(self.jobs_df): continue
+                    job = self.jobs_df.iloc[idx]
+                    results.append({
+                        "job_title": job["title"],
+                        "company": job.get("company", "Confidential"),
+                        "location": job.get("location", "Sri Lanka"),
+                        "link": job.get("job_url", job.get("url", "#")),
+                        "relevance_score": round(float(hit['score']) * 100, 1)
+                    })
+                return results[:top_n]
+            except Exception as e:
+                pass # Fallback to keyword search
+
+        # 2. Fallback: Keyword-based Domain Search (if embeddings missing)
+        return self.recommender.recommend_jobs_domain_filtered(user_skills, target_role, top_n)
 
     
     # course classificatin
@@ -918,25 +1103,36 @@ class RecommendationEngine:
                         "advice": f"Progression path: {row['requirements']}"
                     })
 
-        # 3. Fallback: Band-based Vertical Promotion (Legacy Logic)
-        # Only add if we didn't find specific data-driven vertical paths
+        # 3. Fallback: Band-based Vertical Promotion
+        # FIX (2026-03-04): Previous code ALWAYS prepended 'Junior' even for a Senior
+        # with 7+ years experience and a Master's degree. Now we use status_level
+        # AND experience_years together to pick the correct target label.
         if not found_data_driven and current_band < 4:
-            target_band = current_band + 1
-            band_labels = ["Intern", "Independent", "Professional", "Lead", "Executive"]
-            
-            curr_label = band_labels[current_band] if current_band < len(band_labels) else "Expert"
-            target_label = band_labels[target_band] if target_band < len(band_labels) else "Leader"
+            target_band  = current_band + 1
             status_level = assessment_vector.get("status_level", 0) if assessment_vector else 0
-            if status_level <= 1:
-                # Force entry-level prefix for school leavers/juniors
+            exp_years    = assessment_vector.get("experience_years", 0) if assessment_vector else 0
+            highest_edu  = str(assessment_vector.get("highest_education", "")).lower() if assessment_vector else ""
+            has_postgrad = any(k in highest_edu for k in ["master", "msc", "mba", "phd", "postgrad"])
+
+            # Pick target label based on ACTUAL seniority — not just status_level alone
+            if exp_years >= 8 or (exp_years >= 5 and has_postgrad):
+                # Clearly Senior/Lead territory
+                target_label = "Senior"
+                curr_label   = "Mid-Level"
+            elif exp_years >= 4 or status_level >= 2:
+                # Professional → Senior step
+                target_label = "Lead"
+                curr_label   = "Professional"
+            elif exp_years >= 1 or status_level == 1:
+                # Graduate → Professional step
+                target_label = "Senior"
+                curr_label   = "Junior"
+            else:
+                # True entry level — school leaver or no exp
                 prefixes = ["Junior", "Associate", "Assistant", "Trainee"]
-                curr_label = "Entry/Student" # Fix backward progression logic
-                # If the role doesn't already have an entry level prefix, add one
-                if not any(p in current_role for p in prefixes):
-                    target_label = "Junior"
-                else:
-                    target_label = "" # Avoid prefix duplication if already present
-            
+                curr_label   = "Entry/Student"
+                target_label = "Junior" if not any(p in current_role for p in prefixes) else ""
+
             target_role = f"{target_label} {current_role}".strip()
             
             progression.append({
@@ -1159,60 +1355,8 @@ class RecommendationEngine:
         return round(final_score, 2)
 
     def calculate_readiness_score(self, user_skills, assessment_vector, target_role):
-        """
-        Calculates a Career Readiness Index (0-100) based on 5 metrics:
-        - Skills Match: 35%
-        - Experience Level: 25%
-        - Responsibility Level: 15%
-        - Career Clarity: 15%
-        - Communication/Behavior: 10%
-        """
-        all_required, _ = self.get_skills_for_job(target_role)
-        
-        #  Skills Match (35%)
-        overlap = set(s.lower() for s in user_skills) & set(s.lower() for s in all_required)
-        skill_pct = (len(overlap) / len(all_required)) if all_required else 0
-        
-        #  Experience Level (25%)
-        exp_years = assessment_vector.get("experience_years", 0)
-        # Normalize: 0=0, 5+=1.0
-        exp_pct = min(exp_years / 5.0, 1.0)
-        
-        #  Responsibility Level (15%)
-        band = self.estimate_responsibility_band(user_skills, exp_years)
-        # Normalize: 0=0, 4=1.0
-        resp_pct = band / 4.0
-        
-        #  Career Clarity (15%)
-        # Based on status_level: 0 (Deciding) to 3 (Professional)
-        status = assessment_vector.get("status_level", 0)
-        clarity_pct = status / 3.0
-        
-        #  Communication/Behavior (10%)
-        # Proxied by intent/open prompt completion
-        comm_pct = 1.0 if assessment_vector.get("intent_embedding") else 0.5
-        
-        score = (skill_pct * 35) + (exp_pct * 25) + (resp_pct * 15) + (clarity_pct * 15) + (comm_pct * 10)
-        
-        #  Determine Phase Label based on Career Stage
-        stage = "Market Ready" if score > 70 else "Development Phase"
-        
-        if score < 70:
-            if status == 0: stage = "Exploration Phase"
-            elif status == 4: stage = "Transition Phase"
-            elif status >= 2: stage = "Specialization Phase"
-        
-        breakdown = {
-            "overall": round(score, 1),
-            "skills_match": round(skill_pct * 100, 1),
-            "experience": round(exp_pct * 100, 1),
-            "responsibility": round(resp_pct * 100, 1),
-            "clarity": round(clarity_pct * 100, 1),
-            "communication": round(comm_pct * 100, 1),
-            "stage": stage
-        }
-        
-        return breakdown
+        """Delegated to Phase 10 Analytics."""
+        return self.analytics.calculate_readiness_score(user_skills, assessment_vector, target_role, self.jobs_df, self.salary_mapping, self.rule_engine)
 
     def calculate_transferability_score(self, current_role, target_role):
         """Calculates skill overlap between roles for career switchers"""
@@ -1233,42 +1377,10 @@ class RecommendationEngine:
             "estimated_time": "6-12 months" if diff == "Medium" else ("12+ months" if diff == "High" else "3-6 months")
         }
 
-    def generate_action_plan(self, gap_skills, target_role="your target role"):
-        """Generates a dynamic 12-month coaching roadmap based on skill gaps"""
-        plan = []
-        if not gap_skills:
-            return [{"period": "Months 1-12", "focus": f"Maintenance: Already industry-ready for {target_role}. focus on networking."}]
-        
-        # Prioritize top 2 most critical skills
-        core_focus = gap_skills[:2]
-        remaining = gap_skills[2:5]
-        
-        # Group 1: Months 1-3
-        plan.append({
-            "period": "Months 1-3", 
-            "focus": f"Foundations: Master {', '.join(core_focus)}",
-            "milestone": "Complete initial technical baseline"
-        })
-        # Group 2: Months 4-6
-        plan.append({
-            "period": "Months 4-6", 
-            "focus": f"Building: Portfolio projects using {core_focus[0]}",
-            "milestone": "Github repository with 3+ projects"
-        })
-        # Group 3: Months 7-9
-        plan.append({
-            "period": "Months 7-9", 
-            "focus": f"Visibility: Certification in {remaining[0] if remaining else 'Specialization'} and Internship hunt",
-            "milestone": "Updated resume with newly acquired skills"
-        })
-        # Group 4: Months 10-12
-        plan.append({
-            "period": "Months 10-12", 
-            "focus": f"Placement: Advanced {target_role} interview prep and Mentorship",
-            "milestone": "Full-time role placement"
-        })
-        
-        return plan
+    def generate_action_plan(self, gap_skills, target_role="your target role",
+                             assessment_vector: Optional[Dict] = None):
+        """Delegated to Phase 10 ActionPlanGenerator."""
+        return self.action_plan_gen.generate_action_plan(gap_skills, target_role, assessment_vector)
 
     def parse_resume_image(self, image_path):
         """OCR parsing for AVIF/PNG/JPG resumes"""
@@ -1311,20 +1423,23 @@ class RecommendationEngine:
         return list(set(tasks))[:5]
 
     def _estimate_market_average(self, level, category, provider=None):
-        """Estimates fees based on Provider first, then Level using loaded config"""
-        
-        #  Specific Provider Estimates
+        """Estimates fees and durations based on Level for Sri Lanka market."""
+        # Specific Provider Estimates (Already in Pricing Config)
         if provider and "provider_estimates" in self.pricing_config:
             for key, val in self.pricing_config["provider_estimates"].items():
                 if key.lower() in provider.lower():
-                    return {"duration": "Varies", "fee": f"~{val} (Est)"}
+                    return {"duration": "1-2 years", "fee": f"~{val} (Est)"}
 
-        #  Level-based Fallbacks
-        defaults = {"duration": "Contact Provider", "fee": "Contact Provider"}
-        if "level_averages" in self.pricing_config:
-            return self.pricing_config["level_averages"].get(level, defaults)
-            
-        return defaults
+        # Level-based Fallbacks - Sri Lanka Market Averages
+        level_map = {
+            "Professional": {"duration": "3-6 months", "fee": "~45,000 LKR"},
+            "Academic (Diploma)": {"duration": "6-12 months", "fee": "~150,000 LKR"},
+            "Academic (Degree)": {"duration": "3-4 years", "fee": "~1,800,000 LKR"},
+            "Postgraduate": {"duration": "1-2 years", "fee": "~600,000 LKR"},
+            "Certification": {"duration": "2 months", "fee": "Free / Online"}
+        }
+        
+        return level_map.get(level, {"duration": "Contact Provider", "fee": "Contact Provider"})
 
     # recommend courses
 
@@ -1510,31 +1625,25 @@ class RecommendationEngine:
         user_edu = str(assessment_vector.get("highest_education", "")).lower() if assessment_vector else ""
         has_bsc = "bachelor" in user_edu or "degree" in user_edu or "bsc" in user_edu
         
-        if segment == "Student":
-            if status_level == 0: # O/L or School Level
-                query_terms += ["foundation", "certificate", "diploma", "entry level"]
-            
-            if not preference or preference == "None":
-                if status_level == 0: 
-                    query_terms.append("diploma")
-                elif has_bsc:
-                    query_terms += ["msc", "masters", "postgraduate", "professional certification"]
-                else: 
-                    query_terms += ["degree", "bachelor", "bsc", "university"]
-            else:
-                # Prioritize the user's specific degree preference (e.g., MSc, Diploma)
-                query_terms.append(preference)
-                if "msc" in preference.lower() or "master" in preference.lower():
-                    query_terms += ["graduate", "masters", "university", "postgraduate"]
-                else:
-                    query_terms.append("university")
+        # ── Rule Engine: Stage-Based Level Mapping Strategy ──
+        target_domain = assessment_vector.get("domain", self._infer_domain(target_job))
+        exp_years = float(assessment_vector.get("experience_years", 0))
+        status_level = assessment_vector.get("status_level", 0)
+        
+        # Determine strategy levels
+        strategy_levels = []
+        if segment == "Student": strategy_levels = ["Bachelor", "Diploma"]
+        elif status_level == 3: # Switcher
+            strategy_levels = ["Diploma", "Professional", "Bachelor"]
+        elif exp_years >= 6: # Experienced
+            strategy_levels = ["Postgraduate", "Professional", "Diploma"]
+        elif status_level == 4: # Executive
+            strategy_levels = ["Postgraduate", "Professional"]
         else:
-            if status_level >= 2: # Professional
-                query_terms += ["msc", "postgraduate", "masters", "specialist"]
-            if status_level == 4: # Pivoter
-                query_terms += ["bridge", "conversion", "accelerated", "bootcamp"]
-            if preference:
-                query_terms.append(preference)
+            strategy_levels = ["Diploma", "Professional"]
+
+        if preference and preference != "None":
+            query_terms.append(preference)
                 
         query = " ".join(query_terms)
         print(f"DEBUG: Query = {query}")
@@ -1546,14 +1655,48 @@ class RecommendationEngine:
         # We want a mix of Vocational (Professional) and Academic (Degrees)
         all_candidate_recommendations = []
         
-        # 1. Search Professional Courses
+        # 1. Inject High-Confidence Production Programs (Auth-Rule)
+        for p in self.production_academic_programs:
+            if p['domain'] == target_domain and p['level'] in strategy_levels:
+                # Simple injection: Treat as highly relevant match
+                # Budget check: If budget is restricted, skip if likely expensive (e.g., Masters)
+                if max_budget and max_budget < 200000 and p['level'] in ["Bachelor", "Postgraduate"]:
+                    continue
+                
+                # Numeric mapping for filtering safety
+                fee_val = 50000
+                if p['level'] == "Bachelor": fee_val = 800000
+                elif p['level'] == "Postgraduate": fee_val = 600000
+                elif p['level'] == "Diploma": fee_val = 150000
+                
+                dur_val = 0.5
+                if "3-4" in p['duration']: dur_val = 3.5
+                elif "1-2" in p['duration']: dur_val = 1.5
+                
+                all_candidate_recommendations.append({
+                    "course_name": p["course_name"],
+                    "provider": p["provider"],
+                    "level": f"{p['level']} (High-Confidence Path)",
+                    "type": "Academic" if p['level'] != "Professional" else "Certification",
+                    "duration": p["duration"],
+                    "duration_numeric": dur_val,
+                    "fee": "Varies",
+                    "fee_numeric": fee_val,
+                    "location": "Sri Lanka / Online",
+                    "relevance_score": 0.95, # Rule engine priority
+                    "url": p.get("url", "#"),
+                    "why_recommended": [f"Authoritative path for {target_domain}", f"Bridges: {', '.join(p['focus'][:2])}", p["notes"]],
+                    "source_file": "production_rule"
+                })
+
+        # 2. Search Professional Courses
         hits = util.semantic_search(query_emb, self.course_embs, top_k=top_n * 5)[0]
         for h in hits:
             course = self.courses_df.iloc[h["corpus_id"]]
             processed = self._process_one_course(course, h["score"], segment, user_level, location, max_budget, max_duration, skill_gap)
             all_candidate_recommendations.append(processed)
 
-        # 2. Search Academic Courses
+        # . Search Academic Courses
         if self.academic_embs is not None:
             acad_hits = util.semantic_search(query_emb, self.academic_embs, top_k=top_n * 5)[0]
             for h in acad_hits:
@@ -1561,20 +1704,35 @@ class RecommendationEngine:
                 processed = self._process_one_course(course, h["score"], segment, user_level, location, max_budget, max_duration, skill_gap)
                 all_candidate_recommendations.append(processed)
 
-        # 3. Dynamic Selection Logic - Filter by relevance and user context
-        # Only keep results with decent score
-        user_edu = str(assessment_vector.get("highest_education", "")).lower() if assessment_vector else ""
-        has_degree = "bachelor" in user_edu or "degree" in user_edu or "bsc" in user_edu or "master" in user_edu or "phd" in user_edu or "msc" in user_edu
+        # ─Rule Engine: Domain & Education Invariants ──
+        user_domain = assessment_vector.get("domain", self._infer_domain(target_job))
+        user_edu_lvl = assessment_vector.get("education_level", 1)
         
         filtered_candidates = []
         for r in all_candidate_recommendations:
-            if r['relevance_score'] > 0.25:
-                cn = str(r["course_name"]).lower()
-                # Block redundant Bachelor/BSc/Undergrad degrees if they already hold a degree
-                if has_degree and ("bsc" in cn or "bachelor" in cn or "undergrad" in cn):
-                    continue
-                filtered_candidates.append(r)
+            r_name = str(r.get("course_name", "")).lower()
+            r_lvl_str = str(r.get("level", "Entry")).lower()
+            
+            # invariant 1: Domain Isolation
+            r_domain = self._infer_domain(r_name)
+            if user_domain != "General" and r_domain != "General" and r_domain != user_domain:
+                continue
                 
+            # Invariant 2: Qualification Floor
+            # Map course semantic level to numeric
+            r_edu_val = 1
+            if "diploma" in r_lvl_str: r_edu_val = 3
+            elif "degree" in r_lvl_str or "bachelor" in r_lvl_str or "bsc" in r_lvl_str: r_edu_val = 4
+            elif "master" in r_lvl_str or "postgraduate" in r_lvl_str or "msc" in r_lvl_str: r_edu_val = 5
+            
+            # Do not recommend lower qualification than current
+            # Exception: Professional certifications/short courses are always allowed
+            is_professional = "professional" in r_lvl_str or "certification" in r_lvl_str or r.get("source_file") == "professional"
+            if not is_professional and r_edu_val < user_edu_lvl:
+                continue
+                
+            filtered_candidates.append(r)
+            
         all_candidate_recommendations = sorted(filtered_candidates, key=lambda x: x['relevance_score'], reverse=True)
         
         final_picks = []
@@ -1582,30 +1740,21 @@ class RecommendationEngine:
         
         # Priority logic - Students get academic focus, Professionals get professional focus
         if segment == "Student":
-            # Add academic first (Degrees that bridge skill gaps)
+            # Add academic first
             for r in all_candidate_recommendations:
-                is_acad = r.get("source_file") == "academic" or "Academic" in r.get("level", "")
+                is_acad = r.get("source_file") == "academic" or "Academic" in str(r.get("level", ""))
                 if is_acad and r["course_name"] not in seen_names:
                     final_picks.append(r)
                     seen_names.add(r["course_name"])
-                    if len(final_picks) >= 5: break # Increased count
-        else:
-            # Add professional first
-            for r in all_candidate_recommendations:
-                is_prof = r.get("source_file") == "professional" or "Professional" in r.get("level", "") or "Certification" in r.get("level", "")
-                if is_prof and r["course_name"] not in seen_names:
-                    final_picks.append(r)
-                    seen_names.add(r["course_name"])
-                    if len(final_picks) >= 5: break # Increased count
+                    if len(final_picks) >= 3: break 
         
-        # Fill remaining slots with the best available from either source
+        # Fill remaining slots (up to top_n)
         for r in all_candidate_recommendations:
             if r["course_name"] not in seen_names:
                 final_picks.append(r)
                 seen_names.add(r["course_name"])
                 if len(final_picks) >= top_n: break
 
-        # Main recommendations is the prioritized mix
         recommendations = final_picks[:top_n]
         
         # Academic recommendations - provide a dedicated list of academic paths 
@@ -1700,6 +1849,7 @@ class RecommendationEngine:
         return {
             "status": "Incomplete" if skill_gap else "Complete",
             "mapped_occupation": mapped_occ,
+            "skill_gap": compulsory_gap,
             "compulsory_skills": compulsory_gap[:8],
             "optional_skills": optional_gap[:8],
             "assessment_questions": self.generate_skill_assessment_questions(compulsory_gap + optional_gap),
@@ -1713,9 +1863,48 @@ class RecommendationEngine:
             "career_progression": all_progression, # Keep for backward compatibility
             "salary_estimate": self.get_salary_for_role(target_job),
             "readiness_score": self.calculate_readiness_score(user_skills, assessment_vector or {"status_level": 1 if segment=="Student" else 2, "experience_years": 0}, target_job),
-            "action_plan": self.generate_action_plan(compulsory_gap, target_role=target_job),
+            "action_plan": self.generate_action_plan(
+                gap_skills=compulsory_gap,
+                target_role=target_job,
+                assessment_vector=assessment_vector  # Pass full context for adaptive plan
+            ),
             "market_trends": self.get_personalized_market_trends(target_job),
-            "caveats": advice
+            "caveats": advice,
+            # ── ML Diagnostics (shown in report section M) ──────────────────
+            "ml_diagnostics": self._get_ml_diagnostics(assessment_vector, compulsory_gap)
+        }
+
+    def _get_ml_diagnostics(self, assessment_vector, gap_skills):
+        """
+        Returns a diagnostics dict for the ML layer, shown in report section M.
+        If ML layer is not available, returns a note about SBERT-only mode.
+        """
+        if not assessment_vector:
+            return {"mode": "SBERT-only (no assessment vector)"}
+
+        if self.ml_layer is None or not self.ml_layer.is_trained:
+            return {
+                "mode":    "SBERT-only",
+                "note":    "Run scripts/train_ml_models.py to enable hybrid scoring"
+            }
+
+        seg = self.ml_layer.predict_segment(assessment_vector)
+        similar = self.ml_layer.find_similar_profiles(assessment_vector, top_n=2)
+        acc = self.ml_layer.training_accuracy
+
+        return {
+            "mode":             "Hybrid (SBERT + RF + GBM + KNN)",
+            "predicted_segment": seg["segment"],
+            "confidence":        f"{seg['confidence']:.1%}",
+            "all_segment_probs": seg.get("all_probs", {}),
+            "similar_profiles":  similar,
+            "model_accuracies": {
+                "RandomForest (career segment)": f"{acc.get('segment_rf', 0):.1%}",
+                "GradientBoosting (course fit)": f"{acc.get('fit_gbm', 0):.1%}",
+                "KNN (profile similarity)":      f"{acc.get('profile_knn', 0):.1%}"
+            },
+            "hybrid_formula":   "hybrid_score = 0.60 × SBERT + 0.40 × GBM_fit",
+            "gap_skills_count":  len(gap_skills)
         }
 
     def suggest_alternate_paths(self, job_title, top_n=5):
@@ -1737,141 +1926,19 @@ class RecommendationEngine:
                 break
         return paths
 
-    def match_mentors(self, user_skills, target_job=None, top_n=3):
-        """
-        Finds mentors whose expertise overlaps with user skills.
-        If no skill-based matches found, falls back to role/industry matching for 'a wider range'.
-        """
-        if not self.mentors_data:
-            return []
+    def match_mentors(self, user_skills, target_job, top_n=3, assessment_vector=None):
+        """Delegated to Phase 10 Recommender."""
+        if not self.mentors_data: return []
+        return self.recommender.match_mentors_full(user_skills, target_job, self.mentors_data, top_n, assessment_vector)
 
-        scored_mentors = []
-        user_skill_set = set(s.lower() for s in user_skills)
-        target_role_lower = str(target_job).lower() if target_job else ""
-
-        for mentor in self.mentors_data:
-            # Score based on skill overlap
-            mentor_skills = []
-            raw_skills = mentor.get('skills')
-            
-            if isinstance(raw_skills, list):
-                mentor_skills = [str(s).lower() for s in raw_skills]
-            elif isinstance(raw_skills, str):
-                mentor_skills = [s.strip().lower() for s in raw_skills.split(',')]
-            
-            # Fallback to expertise/bio if skills are missing
-            if not mentor_skills:
-                 bio = str(mentor.get('bio', '')).lower()
-                 expertise = str(mentor.get('expertise', '')).lower() 
-                 combined = bio + " " + expertise
-                 # Check if user skills appear in bio
-                 match_in_bio = [s for s in user_skill_set if s in combined]
-                 overlap = match_in_bio
-            else:
-                overlap = [s for s in mentor_skills if s in user_skill_set]
-            
-            score = len(overlap) * 2
-            
-            # Boost by specialization match
-            specialization = str(mentor.get('specialization', '')).lower()
-            if any(s in specialization for s in user_skill_set):
-                score += 3
-            
-            # Role fallback boost (Semantic overlap with target role)
-            current_role = mentor.get('current_role', mentor.get('title'))
-            if target_role_lower and current_role:
-                cr_lower = str(current_role).lower()
-                if target_role_lower in cr_lower or cr_lower in target_role_lower:
-                    score += 10 # Strong role match
-                elif any(word in cr_lower for word in target_role_lower.split() if len(word) > 3):
-                    score += 4  # Partial role match
-            
-            # Specialization/Industry match with target role
-            if target_role_lower and specialization:
-                if any(word in specialization for word in target_role_lower.split() if len(word) > 3):
-                    score += 4
-
-            # High-Quality / Active Professionals (Real working mentors)
-            company = mentor.get('company')
-            if current_role and company and company != "N/A" and company != "Independent":
-                score += 5  # Strong boost for mentors with active workplace data
-
-            if "senior" in str(current_role).lower() or "lead" in str(current_role).lower():
-                score += 2
-
-            # if premium
-            is_premium = mentor.get('tier') == 'Premium' or mentor.get('is_premium', False)
-            if is_premium:
-                score += 1
-
-            scored_mentors.append({
-                "name": mentor.get('name'),
-                "title": current_role or "Professional Mentor",
-                "company": company or "Independent Consultant",
-                "specialization": mentor.get('specialization'),
-                "score": score,
-                "is_premium": is_premium,
-                "matched_skills": overlap
-            })
-
-        # Sort by score descending
-        scored_mentors.sort(key=lambda x: x['score'], reverse=True)
-        
-        # Only return matches that have some relevance (score > 0)
-        top_matches = [m for m in scored_mentors if m['score'] > 2]
-        
-        return top_matches[:top_n] if top_matches else []
-
-    def suggest_mentor(self, sector_or_job):
-        """Mental Suggestion using loaded synthetic data"""
-        if not hasattr(self, 'mentors_data') or not self.mentors_data:
-            return ["PathFinder+ Alumni", "Industry Professional"]
-        
-        # Filter by sector or keyword
-        relevant = [
-            f"{m['name']} ({m['title']} at {m['company']})" 
-            for m in self.mentors_data 
-            if sector_or_job.lower() in m['sector'].lower() or sector_or_job.lower() in m['title'].lower()
-        ]
-        
-        if relevant:
-            return relevant[:3] # Return top 3 matches
-        
-        # If no direct match, return randoms from same sector if possible, or just randoms
-        return [f"{m['name']} ({m['title']} at {m['company']})" for m in self.mentors_data[:3]]
-
-    def suggest_career_direction(self, interests: List[str]):
-        """Interest-to-Career mapping for early students (O/L, A/L)"""
-        mapping = {
-            "math": "Engineering / Data Science",
-            "art": "UI/UX Design / Creative Marketing",
-            "business": "Management / Accounting / Logistics",
-            "science": "Bio-Tech / Medicine / Engineering",
-            "logic": "Software Engineering / Legal",
-            "drawing": "Architecture / Graphic Design"
-        }
-        
-        discovered = []
-        for interest in interests:
-            interest_lower = interest.lower()
-            for key in mapping:
-                if key in interest_lower:
-                    discovered.append(mapping[key])
-        
-        return list(set(discovered)) if discovered else ["General Management / Social Sciences"]
+    def validate_output(self, recommendations: Dict[str, Any], assessment_vector: Dict[str, Any]) -> Dict[str, Any]:
+        """Delegated to Phase 10 RuleEngine."""
+        return self.rule_engine.validate_output_full(recommendations, assessment_vector)
 
     def get_personalized_market_trends(self, target_role):
-        """Detects user field and fetches relevant market trends"""
-        # Simple field detection logic
-        field = "General"
-        it_keywords = ["software", "developer", "data", "it", "web", "cloud", "engineer", "network", "ai", "tech", "security", "cyber"]
-        biz_keywords = ["manager", "business", "analyst", "finance", "accounting", "hr", "sales", "operations"]
-        marketing_keywords = ["marketing", "social media", "content", "brand", "seo","graphic","graphic design"]
-        
-        role_lower = str(target_role).lower()
-        if any(k in role_lower for k in it_keywords): field = "IT"
-        elif any(k in role_lower for k in biz_keywords): field = "Business"
-        elif any(k in role_lower for k in marketing_keywords): field = "Marketing"
+        """Detects user field and fetches relevant market trends using Rule Engine."""
+        field = self._infer_domain(target_role)
+        if field == "General": field = "IT" # Fallback for trends
         
         # Check cache
         if field in self._trend_cache:
@@ -1943,28 +2010,3 @@ if __name__ == "__main__":
         force_refresh=False
     )
 
-
-    # print("\nTEST 1: A/L Student -> Degree")
-    # try:
-    #     res = engine.recommend_courses(
-    #         ["Math"], "Software Engineer", segment="Student", preference="Degree"
-    #     )
-    # except Exception:
-    #     print(traceback.format_exc())
-    #     sys.exit(1)
-    
-    # print(f"Mapped Occupation: {res['mapped_occupation']}")
-    # print(f"Career Progression: {res['career_progression']}")
-    # print(f"Salary Estimate: {res['salary_estimate']}")
-    
-    # print("\n--- PROFESSIONAL RECOMMENDATIONS ---")
-    # for r in res["recommendations"]:
-    #     print(f"- {r['course_name']} | {r['provider']} ({r['level']}) [Score: {r['relevance_score']}]")
-        
-    # print("\n--- ACADEMIC RECOMMENDATIONS ---")
-    # for r in res["academic_recommendations"]:
-    #     print(f"- {r['course_name']} | {r['provider']} ({r['level']}) [Score: {r['relevance_score']}]")
-
-    # print("\n--- RECOMMENDED MENTORS ---")
-    # for m in res["mentors"]:
-    #     print(f"- {m['name']} ({m['title']} at {m['company']}) [Match: {m['score']}]")
