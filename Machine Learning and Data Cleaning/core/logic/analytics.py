@@ -104,15 +104,15 @@ class Analytics:
                 exp_pct = lo_y + t * (hi_y - lo_y)
                 break
 
-        # ── 3. Local Demand (20%) ─────────────────────────────────────
+        # ── 3. Local Demand (20%)
         demand_score = Analytics.calculate_local_demand_score(domain, jobs_df, salary_mapping, rule_engine)
 
-        # ── 4. Qualification Match (10%) ──────────────────────────────
+        # ── 4. Qualification Match (10%) 
         user_edu_lvl = assessment_vector.get("education_level", 1)
         target_edu_lvl = 4 if domain in ["IT", "Finance"] else 3
         qual_pct = min(user_edu_lvl / target_edu_lvl, 1.0)
 
-        # ── 5. Skill Gap Coverage (10%) ───────────────────────────────
+        # ── 5. Skill Gap Coverage (10%) 
         gap_cov_pct = assessment_vector.get("responsibility_band", 0) / 4.0
 
         score = (skill_alignment * 35) + (exp_pct * 25) + (demand_score * 20) + (qual_pct * 10) + (gap_cov_pct * 10)

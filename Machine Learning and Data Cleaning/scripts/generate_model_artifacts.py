@@ -21,8 +21,8 @@ def generate_artifacts():
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
     # NOTE: Engine swaps these - academic_courses is actually the professional/skill-gap pool
-    PROFESSIONAL_COURSES_PATH = PROCESSED_DIR / "academic_courses_master.csv"  # -> courses_df
-    ACADEMIC_COURSES_PATH = PROCESSED_DIR / "all_courses_master.csv"           # -> academic_df
+    PROFESSIONAL_COURSES_PATH = PROCESSED_DIR / "academic_courses_master.csv"  #  courses_df
+    ACADEMIC_COURSES_PATH = PROCESSED_DIR / "all_courses_master.csv"           #  academic_df
     JOBS_PATH = PROCESSED_DIR / "all_jobs_master.csv"
 
     print("\n" + "="*60)
@@ -30,14 +30,11 @@ def generate_artifacts():
     print("   Regenerating .pt embedding cache files...")
     print("="*60)
 
-    print("\n[1/4] Loading Transformer model (all-MiniLM-L6-v2)...")
+    print("\n Loading Transformer model (all-MiniLM-L6-v2)...")
     model = SentenceTransformer("all-MiniLM-L6-v2")
 
-    # ------------------------------------------------------------------
-    # 2. ESCO Occupation Embeddings
-    # ------------------------------------------------------------------
     esco_emb_file = MODELS_DIR / "esco_occ_embeddings.pt"
-    print(f"\n[2/4] Processing ESCO Occupations from {ESCO_DIR}...")
+    print(f"\n Processing ESCO Occupations from {ESCO_DIR}...")
     esco_occ_path = ESCO_DIR / "occupations_en.csv"
     if esco_occ_path.exists():
         esco_occ = pd.read_csv(esco_occ_path)
@@ -49,11 +46,8 @@ def generate_artifacts():
     else:
         print(f"       [WARN] ESCO file not found: {esco_occ_path}")
 
-    # ------------------------------------------------------------------
-    # 3. Professional Course Embeddings (from academic_courses_master.csv)
-    #    Engine logic: course_title + cat/category + description
-    # ------------------------------------------------------------------
-    print(f"\n[3/4] Processing Professional Skill-Gap Courses ({PROFESSIONAL_COURSES_PATH.name})...")
+
+    print(f"\n Processing Professional Skill-Gap Courses ({PROFESSIONAL_COURSES_PATH.name})...")
     if PROFESSIONAL_COURSES_PATH.exists():
         courses_df = pd.read_csv(PROFESSIONAL_COURSES_PATH)
 
@@ -73,20 +67,18 @@ def generate_artifacts():
             + " " + courses_df["description"].fillna("")
         ).tolist()
 
-        print(f"       Encoding {len(course_texts)} professional courses...")
+        print(f" Encoding {len(course_texts)} professional courses...")
         course_embs = model.encode(course_texts, convert_to_tensor=True, show_progress_bar=True)
 
         # Engine looks for course_embeddings_{stem}.pt
         prof_emb_file = MODELS_DIR / f"course_embeddings_{PROFESSIONAL_COURSES_PATH.stem}.pt"
         torch.save(course_embs, prof_emb_file)
-        print(f"       Saved -> {prof_emb_file.name} ({len(course_embs)} embeddings)")
+        print(f" Saved -> {prof_emb_file.name} ({len(course_embs)} embeddings)")
     else:
-        print(f"       [WARN] Professional courses not found: {PROFESSIONAL_COURSES_PATH}")
+        print(f"Professional courses not found: {PROFESSIONAL_COURSES_PATH}")
 
-    # ------------------------------------------------------------------
-    # 4. Academic Degree Program Embeddings (from all_courses_master.csv)
-    #    Engine logic: course_title + cat/category + description
-    # ------------------------------------------------------------------
+    
+   
     academic_emb_file = MODELS_DIR / "academic_embeddings.pt"
     print(f"\n[4/4] Processing Academic Degree Programs ({ACADEMIC_COURSES_PATH.name})...")
     if ACADEMIC_COURSES_PATH.exists():
@@ -115,9 +107,8 @@ def generate_artifacts():
     else:
         print(f"       [WARN] Academic courses not found: {ACADEMIC_COURSES_PATH}")
 
-    # ------------------------------------------------------------------
-    # 5. Job Embeddings (title column)
-    # ------------------------------------------------------------------
+    # Job Embeddings (title column)
+    
     job_emb_file = MODELS_DIR / "job_embeddings.pt"
     print(f"\n[BONUS] Processing Jobs ({JOBS_PATH.name})...")
     if JOBS_PATH.exists():
@@ -134,9 +125,9 @@ def generate_artifacts():
         print(f"       [WARN] Jobs not found: {JOBS_PATH}")
 
     print("\n" + "="*60)
-    print("   ARTIFACT GENERATION COMPLETE")
-    print(f"   All .pt files saved to: {MODELS_DIR}")
-    print("   Next engine load will use cache — significantly faster!")
+    print("  ARTIFACT GENERATION COMPLETE")
+    print(f" All .pt files saved to: {MODELS_DIR}")
+    print("  Next engine load will use cache!")
     print("="*60 + "\n")
 
 

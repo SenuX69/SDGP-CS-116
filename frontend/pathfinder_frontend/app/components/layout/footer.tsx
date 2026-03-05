@@ -68,10 +68,6 @@ const Footer = () => {
             © {new Date().getFullYear()} <Link href="/" className="hover:underline">PathFinder+™</Link>. All Rights Reserved.
           </span>
           <div className="flex mt-4 sm:justify-center sm:mt-0 gap-4">
-            <a href="https://github.com/Rumblingengine4815/SDGP-CS-116#" className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 hover:text-purple-600 hover:bg-white/30">
-              <Github size={18} className="align-middle" />
-              <span className="sr-only">GitHub account</span>
-            </a>
             <a href="https://linkedin.com" className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 hover:text-purple-600 hover:bg-white/30">
               <Linkedin size={18} className="align-middle" />
               <span className="sr-only">LinkedIn account</span>
