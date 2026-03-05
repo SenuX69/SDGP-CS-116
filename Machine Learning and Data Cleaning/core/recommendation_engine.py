@@ -1443,10 +1443,22 @@ class RecommendationEngine:
 
     # recommend courses
 
-    def _process_one_course(self, course, similarity_score, segment, user_level, location, max_budget, max_duration, skill_gap):
+    def _process_one_course(self, course, similarity_score, segment, user_level, location, max_budget, max_duration, skill_gap, assessment_vector=None):
         """Helper to score and format a single course/degree"""
         level = self.classify_course_level(str(course["course_title"]), str(course.get("duration", "N/A")))
+        
+        # ── Phase 10: Hybrid ML Scoring (0.6 SBERT + 0.4 ML) ──────────────────
         score = similarity_score
+        if self.ml_layer and assessment_vector:
+            try:
+                # Use GBM to refine the semantic match with structural fit
+                score = self.ml_layer.score_course_fit(
+                    assessment_vector, 
+                    level, 
+                    float(similarity_score)
+                )
+            except Exception:
+                pass # Fallback to pure similarity/rules
 
         #  Level-based Scoring
         if segment == "Student":
@@ -1693,7 +1705,7 @@ class RecommendationEngine:
         hits = util.semantic_search(query_emb, self.course_embs, top_k=top_n * 5)[0]
         for h in hits:
             course = self.courses_df.iloc[h["corpus_id"]]
-            processed = self._process_one_course(course, h["score"], segment, user_level, location, max_budget, max_duration, skill_gap)
+            processed = self._process_one_course(course, h["score"], segment, user_level, location, max_budget, max_duration, skill_gap, assessment_vector)
             all_candidate_recommendations.append(processed)
 
         # . Search Academic Courses
@@ -1701,7 +1713,7 @@ class RecommendationEngine:
             acad_hits = util.semantic_search(query_emb, self.academic_embs, top_k=top_n * 5)[0]
             for h in acad_hits:
                 course = self.academic_df.iloc[h["corpus_id"]]
-                processed = self._process_one_course(course, h["score"], segment, user_level, location, max_budget, max_duration, skill_gap)
+                processed = self._process_one_course(course, h["score"], segment, user_level, location, max_budget, max_duration, skill_gap, assessment_vector)
                 all_candidate_recommendations.append(processed)
 
         # ─Rule Engine: Domain & Education Invariants ──

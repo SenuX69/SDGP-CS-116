@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Providers } from "./providers";
 import Footer from "./components/layout/footer";
 import "./globals.css";
 
@@ -15,13 +16,15 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <body className="min-h-screen bg-white font-sans antialiased">
-        <div className="flex flex-col min-h-screen">
-          <main className="grow">
-            {children}
-          </main>
+        <Providers>
+          <div className="flex flex-col min-h-screen">
+            <main className="grow">
+              {children}
+            </main>
 
-          <Footer />
-        </div>
+            <Footer />
+          </div>
+        </Providers>
       </body>
     </html>
   );

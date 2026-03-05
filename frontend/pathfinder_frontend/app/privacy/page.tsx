@@ -16,11 +16,11 @@ export default function PrivacyPage() {
         <p className="text-base font-bold leading-7 text-purple-700 uppercase tracking-widest">Legal Documents</p>
         <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-black sm:text-5xl">Privacy Policy</h1>
         <p className="mt-6 text-xl leading-8 text-black/80">
-          Last updated: February 21, 2026. This policy explains what information PathFinder+ collects, why we collect it, and how you can manage your data.
+          Last updated: March 20 2026. This policy explains what information PathFinder+ collects, why we collect it, and how you can manage your data.
         </p>
 
         <div className="mt-10 max-w-2xl">
-         
+
           <section>
             <h2 className="text-2xl font-bold tracking-tight text-black border-b border-purple-200 pb-2">Introduction</h2>
             <p className="mt-6 text-black">
@@ -49,7 +49,7 @@ export default function PrivacyPage() {
             </ul>
           </section>
 
-          
+
           <section className="mt-16">
             <h2 className="text-2xl font-bold tracking-tight text-black border-b border-purple-200 pb-2">How We Use Your Data</h2>
             <p className="mt-6 text-black">
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
             </ul>
           </section>
 
-         
+
           <section className="mt-16">
             <h2 className="text-2xl font-bold tracking-tight text-black border-b border-purple-200 pb-2">Data Security & Disclosure</h2>
             <p className="mt-6 text-black">
@@ -79,7 +79,7 @@ export default function PrivacyPage() {
             </p>
           </section>
 
-         
+
           <section className="mt-16">
             <h2 className="text-2xl font-bold tracking-tight text-black border-b border-purple-200 pb-2">Your Rights</h2>
             <p className="mt-6 text-black font-medium">
