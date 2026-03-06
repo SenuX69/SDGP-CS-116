@@ -60,4 +60,29 @@ class MentorSkill(Base):
     mentor_id = Column(Integer, ForeignKey("mentor_profiles.id"), nullable=False)
     skill_name = Column(String(80), nullable=False)
     level = Column(Integer, nullable=False)  # 1-10    
+class Assessment(Base):
+    __tablename__ = "assessments"
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class AssessmentResult(Base):
+    __tablename__ = "assessment_results"
+    id = Column(Integer, primary_key=True)
+    assessment_id = Column(Integer, ForeignKey("assessments.id"), nullable=False)
+    skill_name = Column(String(80), nullable=False)
+    score = Column(Integer, nullable=False)  # 0-100
         
+
+class MentorshipRequest(Base):
+    """
+    This is your "Apply" button result.
+    status: pending -> approved -> rejected
+    """
+    __tablename__ = "mentorship_requests"
+    id = Column(Integer, primary_key=True)
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    mentor_id = Column(Integer, ForeignKey("mentor_profiles.id"), nullable=False)
+    status = Column(String(20), default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+      
