@@ -53,5 +53,11 @@ class MentorProfile(Base):
     is_real = Column(Boolean, default=False)
     bio = Column(Text, default="")
     active = Column(Boolean, default=True)
-    
+
+class MentorSkill(Base):
+    __tablename__ = "mentor_skills"
+    id = Column(Integer, primary_key=True)
+    mentor_id = Column(Integer, ForeignKey("mentor_profiles.id"), nullable=False)
+    skill_name = Column(String(80), nullable=False)
+    level = Column(Integer, nullable=False)  # 1-10    
         
