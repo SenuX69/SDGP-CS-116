@@ -8,6 +8,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import torch
 import json
 import logging
+import re
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("TrendAnalyzer")
@@ -87,27 +88,55 @@ class MarketTrendAnalyzer:
         """Analyzes trends for a specific field (e.g., 'IT', 'Business', 'Marketing')"""
         logger.info(f"Analyzing specific trends for field: {field}")
         
-        # 1. Broad field filtering (Refined Keywords)
+        # 1. Broad field filtering (Aligned with RuleEngine.DOMAIN_CLUSTERS)
         field_keywords = {
-            "IT": ["software", "developer", "data scientist", "devops", "java", "python", "javascript", "cloud", "aws", "azure", "network", "security", "ai", "machine learning"],
-            "Business": ["business analyst", "finance", "accounting", "hr", "operations", "sales manager", "strategy", "consultant"],
-            "Marketing": ["digital marketing", "seo", "content writer", "social media manager", "brand manager", "advertising"],
-            "Healthcare": ["nurse", "pharmacist", "clinical", "medical officer", "doctor"]
+            "IT": [
+                "software", "developer", "data", "analyst", "machine learning",
+                "vision", "engineer", "web", "backend", "frontend", "devops",
+                "cloud", "cyber", "computer", "it", "ict", "programming",
+                "network", "database", "systems", "tech", "ai", "artificial intelligence",
+                "python", "java", "react", "sql", "aws", "security", "node", "javascript"
+            ],
+            "Finance": [
+                "accounting", "accountant", "banking", "finance", "financial",
+                "audit", "auditing", "tax", "investment", "insurance", "banker",
+                "treasury", "actuary", "cfa", "acca", "risk management", "credit",
+                "budgeting", "ifrs", "variance analysis"
+            ],
+            "Marketing": [
+                "marketing", "seo", "brand", "advertising", "social media",
+                "content", "copywriter", "media", "pr", "communications",
+                "campaign", "growth hacking", "ecommerce"
+            ],
+            "Healthcare": [
+                "nurse", "nursing", "clinical", "medical", "doctor", "pharmacist",
+                "ward", "health", "patient", "hospital", "triage", "medicine",
+                "caregiver", "surgeon", "physiotherapy", "dental", "pharmacy",
+                "radiology", "lab technician", "paramedic"
+            ],
+            "Science": [
+                "research", "scientist", "physics", "laboratory", "experiment",
+                "neural networks", "field researcher", "biotech", "scientific",
+                "data analysis", "r language", "lab experiments", "researcher"
+            ]
         }
         
+        # Normalize field name to match keys (RuleEngine uses 'Finance' while analyzer used 'Business')
+        if field == "Business": field = "Finance" 
+        
         keywords = field_keywords.get(field, [field.lower()])
-        pattern = "|".join(keywords)
+        pattern = "|".join(re.escape(kw) for kw in keywords)
         
         field_df = self.jobs_df[
-            self.jobs_df['title'].str.contains(pattern, case=False, na=False) |
-            self.jobs_df['description'].str.contains(pattern, case=False, na=False)
+            self.jobs_df['title'].str.contains(pattern, case=False, na=False, regex=True) |
+            self.jobs_df['description'].str.contains(pattern, case=False, na=False, regex=True)
         ].copy()
         
         if len(field_df) < n_clusters:
             n_clusters = max(1, len(field_df))
             
         if len(field_df) == 0:
-            return [{"segment": "Market Average", "skills": ["COMMUNICATION", "ADAPTIVE LEARNING"], "demand": 0}], self.jobs_df
+            return [{"segment": "Insufficient Data", "skills": ["GENERAL SKILLS"], "demand": 0}], pd.DataFrame()
 
         # 2. Field-Specific Clustering
         embeddings = self.model.encode(field_df['combined_text'].tolist(), show_progress_bar=False)

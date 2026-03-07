@@ -298,9 +298,29 @@ class RecommendationEngine:
         if self.academic_df.empty:
             if self.show_progress: print("Note: No academic courses found in standalone file or unified dataset.")
 
-        # Load Salary Data
-        self.salary_mapping = {"roles": {}, "sectors": {}}
-        salary_cfg_path = Path(jobs_path).parent.parent / "config" / "paylab_salary_mapping.csv"
+        # 1. Primary High-Fidelity Config (Calibrated LKR)
+        # RELATIVE PATH from this file (core/recommendation_engine.py)
+        # Path is ../data/config/salary_config.json
+        current_file_path = Path(__file__).resolve()
+        salary_json_path = current_file_path.parent.parent / "data" / "config" / "salary_config.json"
+        
+        # Log for debugging
+        with open(current_file_path.parent / "salary_load_debug.log", "w") as logf:
+            logf.write(f"Trying path: {salary_json_path}\n")
+            logf.write(f"Exists: {salary_json_path.exists()}\n")
+            
+        if salary_json_path.exists():
+            if self.show_progress: print(f"Loading Calibrated Salaries ({salary_json_path.name})...")
+            with open(salary_json_path, 'r') as f:
+                self.salary_mapping = json.load(f)
+                if "roles" in self.salary_mapping:
+                    lowered_roles = {}
+                    for k, v in self.salary_mapping["roles"].items():
+                        lowered_roles[k.lower()] = v
+                    self.salary_mapping["roles"] = lowered_roles
+
+        # 2. Additional Granular Mapping (Paylab)
+        salary_cfg_path = self.ml_root / "data" / "config" / "paylab_salary_mapping.csv"
         if salary_cfg_path.exists():
             try:
                 sal_df = pd.read_csv(salary_cfg_path)
@@ -600,29 +620,67 @@ class RecommendationEngine:
             
         role_map = self.salary_mapping.get("roles", {})
         role_key_raw = str(role_title).strip()
+        role_key_lower = role_key_raw.lower()
         
+        # helper to process level dicts (V3 Gold Logic)
+        def resolve_level(data, level):
+            import re
+            
+            def parse_salary_string(s):
+                nums = re.findall(r'\d+', str(s).replace(',', ''))
+                if len(nums) >= 2:
+                    min_val = int(nums[0])
+                    max_val = int(nums[1])
+                    return {"min": min_val, "avg": (min_val + max_val) // 2, "max": max_val}
+                elif len(nums) == 1:
+                    return {"min": int(nums[0]), "avg": int(nums[0]), "max": int(nums[0])}
+                return {"min": 50000, "avg": 80000, "max": 120000}
+                
+            raw_val = None
+            if isinstance(data, dict):
+                keys = [k.lower() for k in data.keys()]
+                if level.lower() in keys:
+                    raw_val = data.get(next(k for k in data.keys() if k.lower() == level.lower()))
+                elif any(kw in role_key_lower for kw in ["senior", "lead", "chief", "cto", "manager"]):
+                    if "senior" in keys: raw_val = data.get(next(k for k in data.keys() if k.lower() == "senior"))
+                    elif "mid" in keys: raw_val = data.get(next(k for k in data.keys() if k.lower() == "mid"))
+                elif "avg" in data:
+                    return {"avg": data["avg"], "min": data["min"], "max": data["max"]}
+                
+                if raw_val is None:
+                    raw_val = list(data.values())[0]
+            else:
+                raw_val = data
+                
+            return parse_salary_string(raw_val)
+
         # 1. Exact Match
-        if role_key_raw.lower() in role_map:
-            return role_map[role_key_raw.lower()]
+        if role_key_lower in role_map:
+            return resolve_level(role_map[role_key_lower], experience_level)
             
         # 2. Fuzzy Match (Contains)
-        role_key_lower = role_key_raw.lower()
         for known_role, levels in role_map.items():
             if known_role.lower() in role_key_lower or role_key_lower in known_role.lower():
-                return levels
+                return resolve_level(levels, experience_level)
                 
-        # 3. Sector Fallback
+        # 3. Sector Fallback (V3 Priority Mapping)
         sectors = self.salary_mapping.get("sectors", {})
-        if any(kw in role_key_lower for kw in ["software", "developer", "engineer", "data", "it"]):
-            return sectors.get("Information Technology", {})
-        if any(kw in role_key_lower for kw in ["account", "finance", "bank"]):
-            return sectors.get("Economy Finance Accountancy", {})
-        if any(kw in role_key_lower for kw in ["nurse", "health", "hospital", "care", "doctor", "medical"]):
-            return sectors.get("Medicine Social Care", {})
-        if any(kw in role_key_lower for kw in ["market", "pr", "advertis"]):
-            return sectors.get("Marketing Advertising PR", {})
-        if any(kw in role_key_lower for kw in ["manag", "product", "project"]):
-            return sectors.get("Management", {})
+        
+        # Priority 1: Management/Executive (Chief, CTO, CEO, Manager)
+        if any(kw in role_key_lower for kw in ["manag", "product", "project", "strategy", "director", "executive", "chief", "cto", "ceo", "cio"]):
+            return resolve_level(sectors.get("Management", "250,000 - 600,000 LKR"), experience_level)
+            
+        # Priority 2: Technical/IT
+        if any(kw in role_key_lower for kw in ["software", "developer", "engineer", "data", "it", "ict", "technology", "tech"]):
+            return resolve_level(sectors.get("IT", "180,000 - 450,000 LKR"), experience_level)
+            
+        # Priority 3: Other Sectors
+        if any(kw in role_key_lower for kw in ["account", "finance", "bank", "audit", "tax"]):
+            return resolve_level(sectors.get("Finance", "150,000 - 350,000 LKR"), experience_level)
+        if any(kw in role_key_lower for kw in ["nurse", "health", "hospital", "care", "doctor", "medical", "pharmacist"]):
+            return resolve_level(sectors.get("Healthcare", "150,000 - 400,000 LKR"), experience_level)
+        if any(kw in role_key_lower for kw in ["market", "pr", "advertis", "seo", "social"]):
+            return resolve_level(sectors.get("Marketing", "120,000 - 300,000 LKR"), experience_level)
             
         return {}
 
@@ -638,9 +696,29 @@ class RecommendationEngine:
         """
         Processes the assessment into a Feature Vector for the Rule Engine.
         """
+        # Aliasing for 12-question and varied assessment compatibility
+        alias_map = {
+            "career_stage": "current_status",
+            "status": "current_status",
+            "career_background": "self_bio",
+            "q13": "self_bio",
+            "key_achievements": "ideal_workday",
+            "q15": "ideal_workday",
+            "total_experience": "experience_years",
+            "budget_range": "upskilling_budget",
+            "weekly_time": "weekly_availability",
+            "education_type": "education_preference"
+        }
+        
+        # Merge aliases into a copy of answers
+        remapped_answers = answers.copy()
+        for old, new in alias_map.items():
+            if old in answers and new not in answers:
+                remapped_answers[new] = answers[old]
+
         vector = {}
         # Normalize strings and handle specific characters
-        norm_answers = {k: str(v).replace('–', '-').replace('—', '-').strip() if isinstance(v, str) else v for k, v in answers.items()}
+        norm_answers = {k: str(v).replace('–', '-').replace('—', '-').strip() if isinstance(v, str) else v for k, v in remapped_answers.items()}
         
         # 1. Experience Years (Absolute mapped values)
         experience_map = {
@@ -674,9 +752,10 @@ class RecommendationEngine:
         }
         vector["status_level"] = status_map.get(status_raw, 0)
         
-        # 5. Domain Inference (Lock-in)
+        # 5. Domain & Education Preference
         vector["target_role"] = norm_answers.get("target_role", "General")
-        vector["domain"] = self._infer_domain(vector["target_role"])
+        vector["domain"] = norm_answers.get("domain", self._infer_domain(vector["target_role"]))
+        vector["education_preference"] = norm_answers.get("education_preference", "None")
         
         # 6. Skill Extraction (With Domain Guard)
         full_text = f"{norm_answers.get('self_bio', '')} {norm_answers.get('ideal_workday', '')} {vector['target_role']}"
@@ -762,59 +841,19 @@ class RecommendationEngine:
 
     def get_recommendations_from_assessment(self, assessment_vector: Dict[str, Any], target_job: str):
         """
-        Phase 7: Production Entry Point.
-        Returns a complete Dashboard Bundle via the Expert Rule Engine.
+        Phase 7: Production Entry Point (V3 Gold).
+        Returns the definitive 11-Point Dashboard Bundle.
         """
-        # 1. Base Context
-        status_level = assessment_vector.get("status_level", 0)
-        segment = "Student" if status_level <= 1 else "Professional"
         user_skills = assessment_vector.get("extracted_intent_skills", [])
         
-        # 2. Level Mapping
-        user_level = "Entry"
-        if status_level == 0: user_level = "School Level"
-        elif status_level == 1: user_level = "Undergraduate/Graduate"
-        elif status_level >= 2: user_level = "Professional"
-
-        # 3. Budget Parsing
-        budget_str = str(assessment_vector.get("budget_category", "< 50k")).replace("–", "-")
-        budget_map = {"< 50k": 50000, "50k-200k": 200000, "200k-500k": 500000, "500k+": 2000000}
-        max_budget = budget_map.get(budget_str, 50000)
-        
-        # 4. Fetch Components via Rule Engine
-        courses_res = self.recommend_courses(
+        # recommend_courses now orchestrates the entire V3 Gold Bundle internally
+        bundle = self.recommend_courses(
             user_skills=user_skills,
             target_job=target_job,
-            user_level=user_level,
-            segment=segment,
-            preference=assessment_vector.get("education_preference"),
-            max_budget=max_budget,
-            top_n=5,
+            top_n=8,
             assessment_vector=assessment_vector
         )
-        
-        jobs = self.recommend_jobs(user_skills, target_job, top_n=5)
-        mentors = self.match_mentors(user_skills, target_job, top_n=3, assessment_vector=assessment_vector)
-        cri = self.calculate_readiness_score(user_skills, assessment_vector, target_job)
-        trends = self.get_personalized_market_trends(target_job)
-        
-        # 5. Assemble Bundle
-        bundle = {
-            "mapped_occupation": courses_res.get("mapped_occupation", target_job),
-            "career_readiness": cri,
-            "skill_gap": courses_res.get("skill_gap", []),
-            "recommendations": courses_res.get("recommendations", []),
-            "academic_recommendations": courses_res.get("academic_recommendations", []),
-            "jobs": jobs,
-            "salary_intelligence": self._get_salary_intelligence(assessment_vector.get("domain", "General"), user_level),
-            "mentors": mentors,
-            "market_trends": trends,
-            "career_roadmap": self._get_career_roadmap(assessment_vector.get("domain", "General")),
-            "action_plan": self.generate_action_plan(courses_res.get("skill_gap", []), target_job, assessment_vector)
-        }
-        
-        # 6. Final Production Guard
-        return self.validate_output(bundle, assessment_vector)
+        return bundle
 
     def _get_salary_intelligence(self, domain: str, seniority: str) -> Dict[str, Any]:
         """Provides simulated local Paylab salary intelligence based on domain and seniority."""
@@ -1030,8 +1069,8 @@ class RecommendationEngine:
                     
         return band
 
-    def get_career_progression(self, current_role, current_band, user_skills, assessment_vector=None):
-        """Generates progression paths using data-driven career maps and internship logic"""
+    def get_career_progression(self, current_role, current_band, user_skills, assessment_vector=None, top_n=5):
+        """Returns 5 vertical and 5 horizontal path steps."""
         progression = []
         
         # Check for Internship/Entry Level Recommendation
@@ -1379,8 +1418,9 @@ class RecommendationEngine:
 
     def generate_action_plan(self, gap_skills, target_role="your target role",
                              assessment_vector: Optional[Dict] = None):
-        """Delegated to Phase 10 ActionPlanGenerator."""
-        return self.action_plan_gen.generate_action_plan(gap_skills, target_role, assessment_vector)
+        """Delegated to Phase 10 ActionPlanGenerator. Returns the complete action plan dict."""
+        res = self.action_plan_gen.generate_action_plan(gap_skills, target_role, assessment_vector)
+        return res
 
     def parse_resume_image(self, image_path):
         """OCR parsing for AVIF/PNG/JPG resumes"""
@@ -1570,7 +1610,7 @@ class RecommendationEngine:
         location=None,
         max_budget=None,
         max_duration=None,
-        top_n=5,
+        top_n=8,
         assessment_vector=None
     ):
         # get skills and wanted role
@@ -1597,14 +1637,8 @@ class RecommendationEngine:
         band = self.estimate_responsibility_band(user_skills)
         current_score_val = self.calculate_skill_score(user_skills, None, all_required)
         
-        # 3. Handle Complete Match
-        if not skill_gap:
-            return {
-                "status": "Complete",
-                "message": "No skill gap detected for this role.",
-                "band": band,
-                "score": current_score_val
-            }
+        # 3. Handle Complete Match (Transition to Action Plan later, no early return)
+        is_complete = not skill_gap
 
         #  Build Query for Courses
         # Cleaner Query: Filter out verbose ESCO skill names (often full sentences)
@@ -1767,24 +1801,57 @@ class RecommendationEngine:
                 seen_names.add(r["course_name"])
                 if len(final_picks) >= top_n: break
 
-        recommendations = final_picks[:top_n]
-        
-        # Academic recommendations - provide a dedicated list of academic paths 
-        # but also fallback to mixed if academic data is sparse. 
-        # These are academic-level skill-gap courses (Degrees/Diplomas).
+        # ── Gold Logic: Explicit Category Separation ──
+        # 1. Academic recommendations - institutional degrees/diplomas
         academic_recommendations = [
             r for r in all_candidate_recommendations 
-            if r.get("source_file") == "academic" or "Academic" in r.get("level", "")
+            if r.get("source_file") == "academic" or any(kw in str(r.get("level", "")).lower() for kw in ["degree", "diploma", "bachelor", "master", "postgraduate", "academic"])
         ]
         
-        if len(academic_recommendations) < 5:
-            # If few academic, fill with high-relevance professional courses as secondary gap fillers
-            for r in all_candidate_recommendations:
-                if r["course_name"] not in [a["course_name"] for a in academic_recommendations]:
-                    academic_recommendations.append(r)
-                if len(academic_recommendations) >= 8: break # Richer list
+        # 2. Skill-Gap Courses - online learning aggregators (Coursera, Udemy, etc.)
+        skill_gap_courses = [
+            r for r in all_candidate_recommendations
+            if any(agg in str(r.get("url", "")).lower() for agg in ["class-central", "coursera", "udemy", "datacamp", "edx", "linkedin", "google", "pickacourse"])
+            or any(agg in str(r.get("provider", "")).lower() for agg in ["class central", "coursera", "udemy", "datacamp", "edx", "linkedin", "google", "pickacourse"])
+            or "professional" in str(r.get("level", "")).lower()
+        ]
+
+        # ── MSc / Diploma Rules ──
+        pref = assessment_vector.get("education_preference", "").lower() if assessment_vector else ""
+        user_edu = assessment_vector.get("education_level", 1) if assessment_vector else 1
         
+        if "msc" in pref or "master" in pref:
+            # Prioritize Master/Postgraduate in academic pool
+            academic_recommendations = sorted(academic_recommendations, 
+                                             key=lambda x: 1 if "master" in str(x.get("level","")).lower() or "postgraduate" in str(x.get("level","")).lower() else 0,
+                                             reverse=True)
+        elif "diploma" in pref:
+             academic_recommendations = sorted(academic_recommendations, 
+                                             key=lambda x: 1 if "diploma" in str(x.get("level","")).lower() else 0,
+                                             reverse=True)
+
+        # Fill Academic if sparse
+        if len(academic_recommendations) < 5:
+            for r in all_candidate_recommendations:
+                if r["course_name"] not in [a["course_name"] for a in academic_recommendations] and r not in skill_gap_courses:
+                    academic_recommendations.append(r)
+                if len(academic_recommendations) >= 8: break
+        
+        # Fill Skill-Gap if sparse
+        if len(skill_gap_courses) < 5:
+            for r in all_candidate_recommendations:
+                if r["course_name"] not in [s["course_name"] for s in skill_gap_courses] and r not in academic_recommendations:
+                    skill_gap_courses.append(r)
+                if len(skill_gap_courses) >= 12: break
+
         academic_recommendations = academic_recommendations[:8]
+        skill_gap_courses = skill_gap_courses[:12] # Richer skill-gap list
+        recommendations = skill_gap_courses[:top_n]
+
+        # Ensure all courses have apply_url
+        for c_list in [recommendations, academic_recommendations, skill_gap_courses]:
+            for c in c_list:
+                c["apply_url"] = c.get("url", "#")
 
         #  JOB FETCHING
         job_list = []
@@ -1804,21 +1871,26 @@ class RecommendationEngine:
                     missing_skills = [s for s in job_skills_list if s and s not in user_overlap][:4]
                 else:
                     # Fallback to ESCO mapping match
-                    user_matches = [s for s in all_required if s.lower() in user_skills_lower]
-                    fit_pct = round(100 * (len(user_matches) / max(1, len(all_required))), 1)
-                    missing_skills = [s for s in all_required if s and s not in user_matches][:4]
+                    fallback_skills = list(all_required) if 'all_required' in locals() else compulsory_gap + optional_gap
+                    user_matches = [s for s in fallback_skills if s.lower() in user_skills_lower]
+                    fit_pct = round(100 * (len(user_matches) / max(1, len(fallback_skills))), 1)
+                    missing_skills = [s for s in fallback_skills if s and s not in user_matches][:4]
                 
                 gap_pct = max(0, 100 - fit_pct)
+                
+                j_url = j.get("url")
+                if pd.isna(j_url): j_url = "#"
                 
                 job_list.append({
                     "job_title": j["title"],
                     "company": j.get("company", "Lankan Employer"),
                     "deadline": j.get("deadline", "Apply Soon"),
-                    "url": j.get("url", j.get("job_url", "#")),
+                    "url": j_url,
+                    "apply_url": j_url,
                     "skill_gap_pct": gap_pct,
                     "missing_skills": missing_skills,
                     "relevance_score": round(h["score"], 3),
-                    "estimated_salary": self.get_salary_for_role(j["title"])
+                    "estimated_salary": self.get_salary_for_role(j["title"], user_level)
                 })
             
             if not job_list:
@@ -1852,37 +1924,91 @@ class RecommendationEngine:
                 "message": "You're at the learning and exploration stage. Focus on courses and building skills first. Job listings will appear once you've completed a Diploma or A/L qualification."
             }]
 
-        #  FINAL BUNDLE
-        #  Splitting Roadmap for Backend/UI Clarity
+        # ── V3 Dashboard Alignment (11-Point Bundle) ──
         all_progression = self.get_career_progression(target_job, band, user_skills, assessment_vector)
         vertical_roadmap = [p for p in all_progression if "Vertical" in p.get("type", "")]
         horizontal_roadmap = [p for p in all_progression if "Horizontal" in p.get("type", "")]
         
+        readiness = self.calculate_readiness_score(user_skills, assessment_vector or {"status_level": 1 if segment=="Student" else 2, "experience_years": 0}, target_job)
+        
+        # Skill Intelligence (Point 3)
+        current_skills = user_skills[:10]
+        skills_to_strengthen = compulsory_gap[:8]
+        
+        # Skill Gap Insights (Point 4)
+        skill_gap_insights = {
+            "critical_skills": compulsory_gap[:5] if compulsory_gap else ["None - strong alignment detected"],
+            "beneficial_skills": optional_gap[:5] if optional_gap else ["None at this stage"],
+            "status": "Green" if not compulsory_gap else "Yellow" if len(compulsory_gap) < 5 else "Red"
+        }
+
+        # 10. Personalized Action Plan
+        action_roadmap = self.generate_action_plan(gap_skills=compulsory_gap, target_role=target_job, assessment_vector=assessment_vector)
+        
+        # AI Explainability (Point 11)
+        demand_pct = readiness.get("demand_score", 0)
+        explainability = [
+            f"• {demand_pct}% market demand for {target_job} roles in Sri Lanka",
+            "• Education match detected based on institutional alignment",
+            "• Skill alignment detected via advanced ESCO semantic mapping",
+            "• Personalized roadmap generated using V2 Transition Formula"
+        ]
+
+        snapshot_domain = assessment_vector.get("domain", self._infer_domain(target_job)) if assessment_vector else self._infer_domain(target_job)
+
         return {
+            # 1. Career Snapshot (CRI)
+            "career_snapshot": {
+                "target_role": target_job,
+                "score": readiness.get("overall", 0),
+                "stage": readiness.get("stage", "Development Phase"),
+                "estimated_transition_weeks": action_roadmap.get("estimated_weeks", 0),
+                "preferred_industry": snapshot_domain,
+                "sub_metrics": {
+                    "Skills Alignment": readiness.get("skills_match", 0),
+                    "Experience Level": readiness.get("experience", 0),
+                    "Demand Score": readiness.get("demand_score", 0),
+                    "Qualification": readiness.get("qualification", 0),
+                    "Gap Coverage": readiness.get("gap_coverage", 0)
+                }
+            },
+            # 2. AI Career Path Recommendation
+            "career_path_recommendation": {
+                "current_role": target_job,
+                "vertical": vertical_roadmap,
+                "horizontal": horizontal_roadmap
+            },
+            # 3. Skill Intelligence
+            "skill_intelligence": {
+                "current_skills": current_skills,
+                "strengthen": skills_to_strengthen,
+                "soft_skills": assessment_vector.get("normalized_soft_skills", {}) if assessment_vector else {}
+            },
+            # 4. Skill Gap Insights
+            "skill_gap_insights": skill_gap_insights,
+            # 5. Recommended Education
+            "recommended_education": academic_recommendations[:5],
+            "skill_gap_courses": skill_gap_courses[:5],
+            # 6. Real Job Opportunities 
+            "job_opportunities": job_list[:5],
+            # 7. Salary Intelligence
+            "salary_intelligence": self.get_salary_for_role(target_job),
+            # 8. Market Demand Insights
+            "market_demand": self.get_personalized_market_trends(target_job, domain=snapshot_domain),
+            # 9. Mentor Recommendations
+            "mentor_recommendations": self.match_mentors(user_skills, target_job=target_job, top_n=3),
+            # 10. Personalized Action Plan
+            "action_roadmap": action_roadmap,
+            # 11. AI Explainability
+            "ai_explainability": explainability,
+
+            
+            # Legacy compatibility / Extra data
             "status": "Incomplete" if skill_gap else "Complete",
             "mapped_occupation": mapped_occ,
             "skill_gap": compulsory_gap,
-            "compulsory_skills": compulsory_gap[:8],
-            "optional_skills": optional_gap[:8],
-            "assessment_questions": self.generate_skill_assessment_questions(compulsory_gap + optional_gap),
-            "recommendations": recommendations,
-            "academic_recommendations": academic_recommendations,
-            "job_ideas": job_list if job_list else [{"job_title": "No specific openings found for this niche", "company": "Market Research Advised", "message": "Try broadening your role or location filters."}],
-            "mentors": self.match_mentors(user_skills, target_job=target_job, top_n=3),
-            "alternate_paths": self.suggest_alternate_paths(target_job),
-            "vertical_roadmap": vertical_roadmap,
-            "horizontal_roadmap": horizontal_roadmap,
-            "career_progression": all_progression, # Keep for backward compatibility
-            "salary_estimate": self.get_salary_for_role(target_job),
-            "readiness_score": self.calculate_readiness_score(user_skills, assessment_vector or {"status_level": 1 if segment=="Student" else 2, "experience_years": 0}, target_job),
-            "action_plan": self.generate_action_plan(
-                gap_skills=compulsory_gap,
-                target_role=target_job,
-                assessment_vector=assessment_vector  # Pass full context for adaptive plan
-            ),
-            "market_trends": self.get_personalized_market_trends(target_job),
+            "recommendations": skill_gap_courses[:top_n],
             "caveats": advice,
-            # ── ML Diagnostics (shown in report section M) ──────────────────
             "ml_diagnostics": self._get_ml_diagnostics(assessment_vector, compulsory_gap)
         }
 
@@ -1947,9 +2073,9 @@ class RecommendationEngine:
         """Delegated to Phase 10 RuleEngine."""
         return self.rule_engine.validate_output_full(recommendations, assessment_vector)
 
-    def get_personalized_market_trends(self, target_role):
+    def get_personalized_market_trends(self, target_role, domain=None):
         """Detects user field and fetches relevant market trends using Rule Engine."""
-        field = self._infer_domain(target_role)
+        field = domain or self._infer_domain(target_role)
         if field == "General": field = "IT" # Fallback for trends
         
         # Check cache

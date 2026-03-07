@@ -10,12 +10,15 @@ class ActionPlanGenerator:
     @staticmethod
     def generate_action_plan(gap_skills: List[str], target_role: str = "your target role",
                               assessment_vector: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Generates a DYNAMIC, person-specific action plan."""
+        """
+        Generates a DYNAMIC, high-precision action plan using the V2 Formula:
+        Transition Time = (Sum of Skill Times) / (Availability / Baseline) * Exp Factor * Stage Multiplier
+        """
         if not gap_skills:
             return {
                 "steps": [{
                     "period":    "Ongoing",
-                    "action":    f"You are already well-positioned for {target_role}. Focus on networking, portfolio building, and staying current with industry trends.",
+                    "focus":    f"You are already well-positioned for {target_role}. Focus on networking, portfolio building, and staying current with industry trends.",
                     "milestone": "Maintain and grow your lead"
                 }],
                 "estimated_months": 0,
@@ -23,28 +26,53 @@ class ActionPlanGenerator:
                 "estimated_completion": "Ready now"
             }
 
-        # 1. Read user context
-        exp_years = float(assessment_vector.get("experience_years", 0)) if assessment_vector else 0
-        status = int(assessment_vector.get("status_level", 1)) if assessment_vector else 1
+        # 1. Base Skill Weights (Weeks)
+        # Advanced (16), Intermediate (8), Basic (5)
+        ADVANCED_KWS = ["machine learning", "distributed system", "blockchain", "cybersecurity", "architecture", "deep learning", "nlp", "devops", "cloud", "aws", "azure", "docker", "kubernetes"]
+        INTER_KWS = ["api", "database", "visualization", "react", "node", "statistics", "analytics", "backend", "frontend", "sql", "git", "rest", "graphql"]
+
+        sum_skill_weeks = 0
+        for s in gap_skills:
+            s_lower = str(s).lower()
+            if any(kw in s_lower for kw in ADVANCED_KWS):
+                sum_skill_weeks += 16
+            elif any(kw in s_lower for kw in INTER_KWS):
+                sum_skill_weeks += 8
+            else:
+                sum_skill_weeks += 5
+
+        # 2. Availability Adjustment (Baseline 10 hours)
         time_str = str(assessment_vector.get("time_commitment", "10-20 hours")).lower() if assessment_vector else "10-20 hours"
+        availability_hours = 10
+        if "20+" in time_str or "full" in time_str: availability_hours = 25
+        elif "10-20" in time_str: availability_hours = 15
+        elif "5-10" in time_str: availability_hours = 8
+        else: availability_hours = 5
+        
+        pace_factor = availability_hours / 10.0 # Speed multiplier (e.g. 1.5x)
 
-        # Hours per week learning pace
-        if "20+" in time_str or "full" in time_str: pace = 1.0
-        elif "10-20" in time_str: pace = 1.5
-        elif "5-10" in time_str: pace = 2.0
-        else: pace = 2.5
+        # 3. Experience Factor (Transferable Skills)
+        exp_years = float(assessment_vector.get("experience_years", 0)) if assessment_vector else 0
+        exp_factor = 1.0
+        if exp_years >= 10: exp_factor = 0.7
+        elif exp_years >= 6: exp_factor = 0.8
+        elif exp_years >= 3: exp_factor = 0.9
 
-        weeks_per_gap = 3.0 * pace
-        total_weeks = int(len(gap_skills) * weeks_per_gap) + int(8 * pace)
+        # 4. Career Stage Multiplier
+        status = int(assessment_vector.get("status_level", 1)) if assessment_vector else 1
+        # Multipliers: Student (1.2), Switcher (1.0), Professional (0.8)
+        stage_multiplier = 1.0
+        if status <= 1: stage_multiplier = 1.2
+        elif status == 2: stage_multiplier = 0.8
+        elif status == 3: stage_multiplier = 1.0
+
+        # FINAL FORMULA
+        total_weeks = (sum_skill_weeks / pace_factor) * exp_factor * stage_multiplier
         total_months = max(2, round(total_weeks / 4.33))
-
-        # Career stage helpers
-        is_entry = status <= 1 or exp_years == 0
-        is_switcher = status == 3
-        is_senior = exp_years >= 5
-
+        
+        # 5. Milestone Generation
         def phase_label(month_start: int, month_end: int) -> str:
-            if month_end <= 1: return f"Weeks 1-{int(month_end * 4)}"
+            if month_end <= 1: return f"Month 1"
             elif month_end - month_start <= 1: return f"Month {month_start}"
             else: return f"Months {month_start}-{month_end}"
 
@@ -54,39 +82,32 @@ class ActionPlanGenerator:
         seg3 = max(seg2 + 1, round(total_months * 0.80))
         seg4 = total_months
 
-        # Phase 1: Foundation
         plan.append({
             "period": phase_label(1, seg1),
-            "action": f"Develop core skills: {', '.join(gap_skills[:2])}",
-            "milestone": "Complete foundational upskilling" if is_entry else "Identify and close strategic gaps"
+            "focus": f"Foundations: Develop core skills like {', '.join(gap_skills[:2])}",
+            "milestone": "Completed foundational upskilling"
         })
-
-        # Phase 2: Build
         plan.append({
             "period": phase_label(seg1 + 1, seg2),
-            "action": f"Apply skills to practical projects for {target_role}",
-            "milestone": "3+ portfolio projects completed" if not is_senior else "Lead a pilot project in your current role"
+            "focus": f"Portfolio building for {target_role}: Apply skills to 3+ practical projects",
+            "milestone": "Portfolio ready for review"
         })
-
-        # Phase 3: Transition
         plan.append({
             "period": phase_label(seg2 + 1, seg3),
-            "action": f"Seek mentorship and build network in {target_role} domain",
+            "focus": f"Transition Support: Connect with mentors and update industry visibility",
             "milestone": "LinkedIn updated and 5+ informational interviews"
         })
-
-        # Phase 4: Placement
         plan.append({
             "period": phase_label(seg3 + 1, seg4),
-            "action": f"Resume overhaul and active application for {target_role} roles",
+            "focus": f"Placement: Active application and interview prep for {target_role} roles",
             "milestone": "Role secured or transition completed"
         })
 
-        est_label = f"~{total_months} months at your current pace"
+        est_label = f"~{total_months} months at your current pace ({availability_hours}h/week)"
         
         return {
             "steps": plan,
             "estimated_months": total_months,
-            "estimated_weeks": total_weeks,
+            "estimated_weeks": int(total_weeks),
             "estimated_completion": est_label
         }

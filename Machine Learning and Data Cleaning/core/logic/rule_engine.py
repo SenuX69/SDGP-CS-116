@@ -39,6 +39,11 @@ class RuleEngine:
             "network", "database", "systems", "tech", "ai", "artificial intelligence",
             "python", "java", "react", "sql", "aws", "security", "node", "javascript"
         ],
+        "Science": [
+            "research", "scientist", "physics", "laboratory", "experiment",
+            "neural networks", "field researcher", "biotech", "scientific",
+            "data analysis", "r language", "lab experiments", "researcher"
+        ],
     }
 
     EDU_LEVELS: Dict[str, int] = {
