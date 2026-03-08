@@ -59,7 +59,7 @@ class MentorSkill(Base):
     id = Column(Integer, primary_key=True)
     mentor_id = Column(Integer, ForeignKey("mentor_profiles.id"), nullable=False)
     skill_name = Column(String(80), nullable=False)
-    level = Column(Integer, nullable=False)  # 1-10    
+    level = Column(Integer, nullable=False)   
 class Assessment(Base):
     __tablename__ = "assessments"
     id = Column(Integer, primary_key=True)
@@ -71,7 +71,7 @@ class AssessmentResult(Base):
     id = Column(Integer, primary_key=True)
     assessment_id = Column(Integer, ForeignKey("assessments.id"), nullable=False)
     skill_name = Column(String(80), nullable=False)
-    score = Column(Integer, nullable=False)  # 0-100
+    score = Column(Integer, nullable=False) 
         
 
 class MentorshipRequest(Base):
@@ -85,4 +85,24 @@ class MentorshipRequest(Base):
     mentor_id = Column(Integer, ForeignKey("mentor_profiles.id"), nullable=False)
     status = Column(String(20), default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
-      
+
+
+# ---------------------------
+# Schemas
+# ---------------------------
+class UserCreate(BaseModel):
+    name: str
+    role: str = "student"
+
+class MentorCreate(BaseModel):
+    display_name: str
+    is_real: bool = False
+    bio: str = ""
+    active: bool = True
+    user_id: Optional[int] = None
+
+class MentorSkillIn(BaseModel):
+    skill_name: str
+    level: int = Field(ge=1, le=10)
+ 
+    
