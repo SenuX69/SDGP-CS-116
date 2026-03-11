@@ -12,6 +12,8 @@ export default function CareerPath() {
     interest: "",
     jobStatus: "",
     payCourses: "",
+    digitalSkill: "",
+    timeCommitment: "",
     language: ""
   });
 
@@ -30,6 +32,8 @@ export default function CareerPath() {
       !form.interest ||
       !form.jobStatus ||
       !form.payCourses ||
+      !form.digitalSkill ||
+      !form.timeCommitment ||
       !form.language
     ) {
       return;
@@ -71,7 +75,6 @@ export default function CareerPath() {
             />
           </div>
 
-
           {/* QUALIFICATION */}
           <div>
             <label className="text-sm text-gray-800 font-medium">
@@ -86,7 +89,6 @@ export default function CareerPath() {
               className={submitted && !form.qualification ? errorInput : inputStyle}
             />
           </div>
-
 
           {/* FIELD */}
           <div>
@@ -103,7 +105,6 @@ export default function CareerPath() {
             />
           </div>
 
-
           {/* REASON */}
           <div>
             <label className="text-sm text-gray-800 font-medium">
@@ -118,7 +119,6 @@ export default function CareerPath() {
               className={inputStyle}
             />
           </div>
-
 
           {/* FIELD INTERESTED */}
           <div>
@@ -140,7 +140,6 @@ export default function CareerPath() {
               </p>
             )}
           </div>
-
 
           {/* LANGUAGE */}
           <div>
@@ -212,7 +211,6 @@ export default function CareerPath() {
 
           </div>
 
-
           {/* PAY FOR COURSES */}
           <div>
 
@@ -230,6 +228,53 @@ export default function CareerPath() {
               <option>Yes</option>
               <option>No</option>
               <option>Free or Low cost Courses would be appropriate</option>
+            </select>
+
+          </div>
+
+
+          {/* DIGITAL SKILLS */}
+          <div>
+
+            <label className="text-sm text-gray-800 font-medium">
+              How confident are you with Digital Skills
+            </label>
+
+            <select
+              name="digitalSkill"
+              value={form.digitalSkill}
+              onChange={handleChange}
+              className={submitted && !form.digitalSkill ? errorInput : inputStyle}
+            >
+              <option value="">Select Level</option>
+              <option>No Experience prior</option>
+              <option>Basic Understanding</option>
+              <option>Comfortable with certain tools (ex: Photoshop)</option>
+              <option>Intermediate Level Knowledge</option>
+              <option>Expert</option>
+            </select>
+
+          </div>
+
+
+          {/* TIME COMMITMENT */}
+          <div>
+
+            <label className="text-sm text-gray-800 font-medium">
+              Time Commitment for learning (Per month)
+            </label>
+
+            <select
+              name="timeCommitment"
+              value={form.timeCommitment}
+              onChange={handleChange}
+              className={submitted && !form.timeCommitment ? errorInput : inputStyle}
+            >
+              <option value="">Select Time</option>
+              <option>Less than 10 hours</option>
+              <option>10 - 25 hours</option>
+              <option>25 - 40 hours</option>
+              <option>More than 40 hours</option>
             </select>
 
           </div>
