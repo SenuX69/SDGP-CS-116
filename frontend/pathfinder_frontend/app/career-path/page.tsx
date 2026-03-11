@@ -27,6 +27,7 @@ export default function CareerPath() {
   };
 
   const handleSubmit = () => {
+
     setSubmitted(true);
 
     if (
@@ -42,14 +43,16 @@ export default function CareerPath() {
       return;
     }
 
+    sessionStorage.setItem("careerData", JSON.stringify(form));
+
     router.push("/career-path/result");
   };
 
   const inputStyle =
-    "w-full border border-gray-300 rounded-lg p-3 mt-1 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
+    "w-full border border-gray-300 rounded-lg p-3 mt-1 bg-white text-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500";
 
   const errorInput =
-    "w-full border border-red-400 rounded-lg p-3 mt-1 bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-400";
+    "w-full border border-red-400 rounded-lg p-3 mt-1 bg-white text-gray-800 focus:border-red-400 focus:ring-1 focus:ring-red-400";
 
   return (
     <div className="w-full min-h-screen bg-white px-16 py-10">
@@ -63,9 +66,8 @@ export default function CareerPath() {
         {/* LEFT SIDE */}
         <div className="space-y-6">
 
-          {/* CURRENT ROLE */}
           <div>
-            <label className="text-sm text-gray-800 font-medium">
+            <label className="text-sm font-medium text-gray-800">
               Current Role*
             </label>
 
@@ -78,10 +80,10 @@ export default function CareerPath() {
             />
           </div>
 
-          {/* QUALIFICATION */}
+
           <div>
-            <label className="text-sm text-gray-800 font-medium">
-              Highest Qualification Obtained (Ex: O/L, BSc)*
+            <label className="text-sm font-medium text-gray-800">
+              Highest Qualification Obtained*
             </label>
 
             <input
@@ -93,9 +95,9 @@ export default function CareerPath() {
             />
           </div>
 
-          {/* FIELD */}
+
           <div>
-            <label className="text-sm text-gray-800 font-medium">
+            <label className="text-sm font-medium text-gray-800">
               Type of Field (If Working)
             </label>
 
@@ -108,10 +110,10 @@ export default function CareerPath() {
             />
           </div>
 
-          {/* REASON */}
+
           <div>
-            <label className="text-sm text-gray-800 font-medium">
-              Reason for switching fields (if so)
+            <label className="text-sm font-medium text-gray-800">
+              Reason for switching fields
             </label>
 
             <input
@@ -123,10 +125,10 @@ export default function CareerPath() {
             />
           </div>
 
-          {/* FIELD INTERESTED */}
+
           <div>
-            <label className="text-sm text-gray-800 font-medium">
-              Enter Field Interested In
+            <label className="text-sm font-medium text-gray-800">
+              Field Interested In*
             </label>
 
             <input
@@ -136,67 +138,73 @@ export default function CareerPath() {
               onChange={handleChange}
               className={submitted && !form.interest ? errorInput : inputStyle}
             />
-
-            {submitted && !form.interest && (
-              <p className="text-red-500 text-sm mt-1">
-                Please complete the field with an actual Field of Work
-              </p>
-            )}
           </div>
 
-          {/* LANGUAGE */}
-          <div>
 
-            <p className="text-sm text-gray-800 font-medium mb-3">
-              Preferred Language of Choice*
-            </p>
+                  <div>
 
-            <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-800 mb-3">
+                          Preferred Language*
+                      </p>
 
-              <label className="flex items-center gap-2 text-gray-700">
-                <input
-                  type="radio"
-                  name="language"
-                  value="English"
-                  onChange={handleChange}
-                />
-                English
-              </label>
+                      <div className="space-y-3">
 
-              <label className="flex items-center gap-2 text-gray-700">
-                <input
-                  type="radio"
-                  name="language"
-                  value="Sinhala"
-                  onChange={handleChange}
-                />
-                Sinhala
-              </label>
+                          <label className="flex items-center gap-3 text-gray-800 cursor-pointer">
 
-              <label className="flex items-center gap-2 text-gray-700">
-                <input
-                  type="radio"
-                  name="language"
-                  value="Tamil"
-                  onChange={handleChange}
-                />
-                Tamil
-              </label>
+                              <input
+                                  type="radio"
+                                  name="language"
+                                  value="English"
+                                  onChange={handleChange}
+                                  className="accent-blue-600 w-4 h-4"
+                              />
 
-            </div>
+                              English
 
-          </div>
+                          </label>
+
+
+                          <label className="flex items-center gap-3 text-gray-800 cursor-pointer">
+
+                              <input
+                                  type="radio"
+                                  name="language"
+                                  value="Sinhala"
+                                  onChange={handleChange}
+                                  className="accent-blue-600 w-4 h-4"
+                              />
+
+                              Sinhala
+
+                          </label>
+
+
+                          <label className="flex items-center gap-3 text-gray-800 cursor-pointer">
+
+                              <input
+                                  type="radio"
+                                  name="language"
+                                  value="Tamil"
+                                  onChange={handleChange}
+                                  className="accent-blue-600 w-4 h-4"
+                              />
+
+                              Tamil
+
+                          </label>
+
+                      </div>
+
+</div>
 
         </div>
 
 
         {/* RIGHT SIDE */}
-        <div className="space-y-10">
+        <div className="space-y-8">
 
-          {/* JOB STATUS */}
           <div>
-
-            <label className="text-sm text-gray-800 font-medium">
+            <label className="text-sm font-medium text-gray-800">
               Job Status*
             </label>
 
@@ -206,19 +214,17 @@ export default function CareerPath() {
               onChange={handleChange}
               className={submitted && !form.jobStatus ? errorInput : inputStyle}
             >
-              <option value="">Select Answer</option>
+              <option value="">Select</option>
               <option>Employed</option>
               <option>Unemployed</option>
               <option>Committed to Studies</option>
             </select>
-
           </div>
 
-          {/* PAY FOR COURSES */}
-          <div>
 
-            <label className="text-sm text-gray-800 font-medium">
-              Are you willing to pay for courses?*
+          <div>
+            <label className="text-sm font-medium text-gray-800">
+              Willing to pay for courses?*
             </label>
 
             <select
@@ -227,19 +233,17 @@ export default function CareerPath() {
               onChange={handleChange}
               className={submitted && !form.payCourses ? errorInput : inputStyle}
             >
-              <option value="">Select Answer</option>
+              <option value="">Select</option>
               <option>Yes</option>
               <option>No</option>
-              <option>Free or Low cost Courses would be appropriate</option>
+              <option>Free / Low Cost</option>
             </select>
-
           </div>
 
-          {/* DIGITAL SKILLS */}
-          <div>
 
-            <label className="text-sm text-gray-800 font-medium">
-              How confident are you with Digital Skills*
+          <div>
+            <label className="text-sm font-medium text-gray-800">
+              Digital Skill Level*
             </label>
 
             <select
@@ -248,21 +252,18 @@ export default function CareerPath() {
               onChange={handleChange}
               className={submitted && !form.digitalSkill ? errorInput : inputStyle}
             >
-              <option value="">Select Level</option>
-              <option>No Experience prior</option>
+              <option value="">Select</option>
+              <option>No Experience</option>
               <option>Basic Understanding</option>
-              <option>Comfortable with certain tools (ex: Photoshop)</option>
-              <option>Intermediate Level Knowledge</option>
-              <option>Expert</option>
+              <option>Intermediate</option>
+              <option>Advanced</option>
             </select>
-
           </div>
 
-          {/* TIME COMMITMENT */}
-          <div>
 
-            <label className="text-sm text-gray-800 font-medium">
-              Time Commitment for learning (Per month)*
+          <div>
+            <label className="text-sm font-medium text-gray-800">
+              Time Commitment*
             </label>
 
             <select
@@ -271,23 +272,21 @@ export default function CareerPath() {
               onChange={handleChange}
               className={submitted && !form.timeCommitment ? errorInput : inputStyle}
             >
-              <option value="">Select Time</option>
+              <option value="">Select</option>
               <option>Less than 10 hours</option>
-              <option>10 - 25 hours</option>
-              <option>25 - 40 hours</option>
+              <option>10-25 hours</option>
+              <option>25-40 hours</option>
               <option>More than 40 hours</option>
             </select>
-
           </div>
 
         </div>
 
       </div>
 
-      {/* SUBMIT BUTTON */}
       <button
         onClick={handleSubmit}
-        className="mt-12 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition"
+        className="mt-12 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
       >
         Submit Assessment
       </button>

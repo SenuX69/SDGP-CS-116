@@ -1,140 +1,157 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 
-export default function CareerPathResult() {
-  return (
-    <div className="min-h-screen bg-white px-16 py-10">
+export default function ResultPage() {
 
-      <h1 className="text-2xl font-semibold text-gray-800 mb-10">
+  const router = useRouter();
+  const [data, setData] = useState<any>(null);
+
+  useEffect(() => {
+
+    const saved = sessionStorage.getItem("careerData");
+
+    if (!saved) {
+      router.push("/career-path");
+      return;
+    }
+
+    setData(JSON.parse(saved));
+
+  }, []);
+
+  if (!data) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        Loading career path...
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-white px-16 py-14">
+
+      <h1 className="text-3xl font-semibold text-gray-800 mb-16">
         Career Path Mapping
       </h1>
 
-      <div className="flex items-end gap-4 overflow-x-auto">
+      <div className="relative flex items-end gap-8">
 
-        {/* STEP 1 */}
-        <div className="w-60 border rounded shadow bg-white">
-          <div className="bg-blue-700 text-white px-3 py-1 font-semibold">
-            01
-          </div>
-
-          <div className="p-4 text-sm text-gray-700">
-
-            <h3 className="font-semibold mb-2">Existing Career</h3>
-
-            <p className="font-medium">Education</p>
-            <p>BSc in Nursing</p>
-
-            <p className="font-medium mt-3">Field of Study</p>
-
-            <ul className="list-disc ml-4">
-              <li>Health Care</li>
-              <li>Technology Studies</li>
-              <li>Engineering Studies</li>
-            </ul>
-
-          </div>
+        {/* PERSON */}
+        <div className="absolute left-[260px] -top-16">
+          <Image
+            src="/images/person.png"
+            alt="person"
+            width={120}
+            height={120}
+          />
         </div>
 
+        {/* STEP 01 */}
+        <Step
+          number="01"
+          title="Existing Career"
+          content={[
+            `Role: ${data.role}`,
+            `Education: ${data.qualification}`
+          ]}
+        />
 
-        {/* STEP 2 */}
-        <div className="w-60 border rounded shadow bg-white">
-          <div className="bg-blue-700 text-white px-3 py-1 font-semibold">
-            02
-          </div>
+        {/* STEP 02 */}
+        <Step
+          number="02"
+          title="Field of Interest"
+          content={[data.interest]}
+          offset="mb-10"
+        />
 
-          <div className="p-4 text-sm text-gray-700">
+        {/* STEP 03 */}
+        <Step
+          number="03"
+          title="Potential Careers"
+          content={[
+            "Computer Systems Analyst",
+            "Information Security Analyst",
+            "Network Support Specialist"
+          ]}
+          offset="mb-20"
+        />
 
-            <h3 className="font-semibold mb-2">Field of Interest</h3>
+        {/* STEP 04 */}
+        <Step
+          number="04"
+          title="Recommended Actions"
+          content={[
+            "60 Hours Computer Training",
+            "Employer Certifications",
+            "6 Month Course"
+          ]}
+          offset="mb-30"
+        />
 
-            <ul className="list-disc ml-4">
-              <li>Computer Occupations</li>
-            </ul>
+        {/* STEP 05 */}
+        <Step
+          number="05"
+          title="Resources"
+          content={[
+            "FreeCodeCamp",
+            "AWS Course",
+            "Cloud Practitioner"
+          ]}
+          offset="mb-40"
+        />
 
-          </div>
+        {/* STEP 06 */}
+        <Step
+          number="06"
+          title="Targets"
+          content={[
+            "AWS Practitioner",
+            "Cloud Security Professional",
+            "Certified Ethical Hacker"
+          ]}
+          offset="mb-52"
+        />
+
+        {/* TROPHY */}
+        <div className="absolute right-0 -top-28">
+          <Image
+            src="/images/trophy.png"
+            alt="trophy"
+            width={140}
+            height={140}
+          />
         </div>
 
+      </div>
 
-        {/* STEP 3 */}
-        <div className="w-60 border rounded shadow bg-white">
-          <div className="bg-blue-700 text-white px-3 py-1 font-semibold">
-            03
-          </div>
-
-          <div className="p-4 text-sm text-gray-700">
-
-            <h3 className="font-semibold mb-2">Potential Careers</h3>
-
-            <ul className="list-disc ml-4">
-              <li>Computer Systems Analysts</li>
-              <li>Information Security Analysts</li>
-              <li>Computer Support Specialists</li>
-              <li>Network Support Specialists</li>
-            </ul>
-
-          </div>
-        </div>
+    </div>
+  );
+}
 
 
-        {/* STEP 4 */}
-        <div className="w-60 border rounded shadow bg-white">
-          <div className="bg-blue-700 text-white px-3 py-1 font-semibold">
-            04
-          </div>
+function Step({ number, title, content, offset = "" }: any) {
 
-          <div className="p-4 text-sm text-gray-700">
+  return (
+    <div className={`w-[220px] bg-white border rounded-lg shadow-md ${offset}`}>
 
-            <h3 className="font-semibold mb-2">Recommended Actions</h3>
+      <div className="bg-blue-600 text-white px-3 py-2 font-semibold">
+        {number}
+      </div>
 
-            <ul className="list-disc ml-4">
-              <li>60 Hours Computer Systems Training</li>
-              <li>Employer Certifications</li>
-              <li>6 Month Course</li>
-            </ul>
+      <div className="p-4">
 
-          </div>
-        </div>
+        <h3 className="font-semibold text-gray-800 mb-2">
+          {title}
+        </h3>
 
-
-        {/* STEP 5 */}
-        <div className="w-60 border rounded shadow bg-white">
-          <div className="bg-blue-700 text-white px-3 py-1 font-semibold">
-            05
-          </div>
-
-          <div className="p-4 text-sm text-gray-700">
-
-            <h3 className="font-semibold mb-2">Resources</h3>
-
-            <ul className="list-disc ml-4">
-              <li>FreeCodeCamp</li>
-              <li>Cloud Practitioner Course</li>
-              <li>AWS Cloud Exams</li>
-            </ul>
-
-          </div>
-        </div>
-
-
-        {/* STEP 6 */}
-        <div className="w-60 border rounded shadow bg-white">
-
-          <div className="bg-blue-700 text-white px-3 py-1 font-semibold">
-            06
-          </div>
-
-          <div className="p-4 text-sm text-gray-700">
-
-            <h3 className="font-semibold mb-2">Targets</h3>
-
-            <ul className="list-disc ml-4">
-              <li>AWS Cloud Practitioner</li>
-              <li>Cloud Security Professional</li>
-              <li>Data Privacy Engineer</li>
-              <li>Certified Ethical Hacker</li>
-            </ul>
-
-          </div>
-
-        </div>
+        <ul className="text-sm text-gray-700 space-y-1">
+          {content.map((item: string, index: number) => (
+            <li key={index}>• {item}</li>
+          ))}
+        </ul>
 
       </div>
 
