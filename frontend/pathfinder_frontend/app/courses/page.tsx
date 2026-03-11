@@ -20,6 +20,18 @@ export default function Courses() {
 
       </div>
 
+      <div className="flex gap-10">
+
+        <div className="flex-1">
+          Courses Here
+        </div>
+
+        <div className="w-56 bg-blue-100 p-5 rounded">
+          Filter Panel
+        </div>
+
+      </div>
+
     </div>
   );
 }
