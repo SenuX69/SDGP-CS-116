@@ -75,10 +75,7 @@ class AssessmentResult(Base):
         
 
 class MentorshipRequest(Base):
-    """
-    This is your "Apply" button result.
-    status: pending -> approved -> rejected
-    """
+   
     __tablename__ = "mentorship_requests"
     id = Column(Integer, primary_key=True)
     student_id = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -123,16 +120,7 @@ class MessageIn(BaseModel):
     type: str = "text"   # text/image/file
     content: str
 
-# ---------------------------
-# Simple auth for SDGP demo
-# ---------------------------
-"""
-For your SDGP demo, easiest is: pass user id in header.
-Later you can replace with JWT.
 
-Frontend sends:
-  X-User-Id: 1
-"""
 def get_me(x_user_id: Optional[str] = None, db: Session = Depends(get_db)) -> User:
     if not x_user_id:
         raise HTTPException(401, "Missing X-User-Id header")
@@ -144,3 +132,132 @@ def get_me(x_user_id: Optional[str] = None, db: Session = Depends(get_db)) -> Us
 # ---------------------------
 # Recommendation Engine
 # ---------------------------
+def recommend_mentors(db: Session, results: Dict[str, int], top_k: int = 5):
+    needs = {k.lower(): max(0, 100 - int(v)) for k, v in results.items()}
+
+    mentors = db.query(MentorProfile).filter(MentorProfile.active == True).all()
+    scored = []
+    for m in mentors:
+        skills = db.query(MentorSkill).filter(MentorSkill.mentor_id == m.id).all()
+        skill_map = {s.skill_name.lower(): s.level for s in skills}
+        score = sum(needs.get(skill, 0) * int(skill_map.get(skill, 0)) for skill in needs.keys())
+        scored.append((m, score))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return scored[:top_k]
+# ---------------------------
+# Startup: create tables + seed fake mentors
+# ---------------------------
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(engine)
+    db = SessionLocal()
+    try:
+        if db.query(User).count() == 0:
+            db.add_all([
+                User(name="Student Demo", role="student"),  # id = 1
+                User(name="Admin Demo", role="admin"),      # id = 2
+            ])
+            db.commit()
+
+        if db.query(MentorProfile).count() == 0:
+            m1 = MentorProfile(display_name="Mr Ranjan Peter", is_real=False, bio="Former Software Lead. Guides software career paths.")
+            m2 = MentorProfile(display_name="Ms Maya Silva", is_real=False, bio="UI/UX Engineer. Guides software design paths.")
+            db.add_all([m1, m2])
+            db.commit()
+
+            db.add_all([
+                MentorSkill(mentor_id=m1.id, skill_name="Java", level=9),
+                MentorSkill(mentor_id=m1.id, skill_name="Backend", level=8),
+                MentorSkill(mentor_id=m1.id, skill_name="SQL", level=7),
+
+                MentorSkill(mentor_id=m2.id, skill_name="UI/UX", level=9),
+                MentorSkill(mentor_id=m2.id, skill_name="Design", level=8),
+                MentorSkill(mentor_id=m2.id, skill_name="Frontend", level=7),
+            ])
+            db.commit()
+    finally:
+        db.close()
+        
+# ---------------------------
+# Endpoints
+# ---------------------------
+@app.get("/")
+def home():
+    return {"message": "Mentor backend running ✅"}
+
+# Users
+@app.post("/users")
+def create_user(data: UserCreate, db: Session = Depends(get_db)):
+    u = User(name=data.name, role=data.role)
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return {"id": u.id, "name": u.name, "role": u.role}
+
+# Mentors
+@app.get("/mentors")
+def list_mentors(db: Session = Depends(get_db)):
+    mentors = db.query(MentorProfile).all()
+    return [{"id": m.id, "display_name": m.display_name, "is_real": m.is_real, "bio": m.bio, "active": m.active} for m in mentors]
+@app.post("/mentors")
+def create_mentor(data: MentorCreate, db: Session = Depends(get_db), me: User = Depends(get_me)):
+    if me.role != "admin":
+        raise HTTPException(403, "Admin only")
+    m = MentorProfile(
+        display_name=data.display_name, is_real=data.is_real,
+        bio=data.bio, active=data.active, user_id=data.user_id
+    )
+    db.add(m)
+    db.commit()
+    db.refresh(m)
+    return {"mentor_id": m.id}
+
+@app.post("/mentors/{mentor_id}/skills")
+def add_mentor_skill(mentor_id: int, data: MentorSkillIn, db: Session = Depends(get_db), me: User = Depends(get_me)):
+    if me.role != "admin":
+        raise HTTPException(403, "Admin only")
+    mentor = db.get(MentorProfile, mentor_id)
+    if not mentor:
+        raise HTTPException(404, "Mentor not found")
+    s = MentorSkill(mentor_id=mentor_id, skill_name=data.skill_name, level=data.level)
+    db.add(s)
+    db.commit()
+    return {"ok": True}
+
+# Assessment + Suggestions (your “Suggested Mentors based on Skill Assessment” page)
+@app.post("/assessments", response_model=AssessmentCreateOut)
+def create_assessment(db: Session = Depends(get_db), me: User = Depends(get_me)):
+    a = Assessment(user_id=me.id)
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+    return AssessmentCreateOut(assessment_id=a.id)
+
+@app.post("/assessments/{assessment_id}/results")
+def submit_assessment_results(assessment_id: int, data: AssessmentResultsIn, db: Session = Depends(get_db), me: User = Depends(get_me)):
+    a = db.get(Assessment, assessment_id)
+    if not a or a.user_id != me.id:
+        raise HTTPException(404, "Assessment not found")
+
+    for skill, score in data.results.items():
+        db.add(AssessmentResult(assessment_id=assessment_id, skill_name=skill, score=int(score)))
+    db.commit()
+    return {"ok": True}
+
+
+@app.get("/assessments/{assessment_id}/suggestions")
+def get_suggestions(assessment_id: int, db: Session = Depends(get_db), me: User = Depends(get_me)):
+    a = db.get(Assessment, assessment_id)
+    if not a or a.user_id != me.id:
+        raise HTTPException(404, "Assessment not found")
+
+    rows = db.query(AssessmentResult).filter(AssessmentResult.assessment_id == assessment_id).all()
+    if not rows:
+        raise HTTPException(400, "No results submitted")
+
+    results = {r.skill_name: r.score for r in rows}
+    top = recommend_mentors(db, results, top_k=5)
+    return [{"mentor_id": m.id, "display_name": m.display_name, "bio": m.bio, "match_score": score} for (m, score) in top]
+
+        
