@@ -31,3 +31,32 @@ db = client[os.getenv("DATABASE_NAME")]
 
 # Initialize the ChatService (Standalone mode: no engine passed)
 chat_service = ChatService(db=db)
+
+# Data structure for the incoming request
+class ChatRequest(BaseModel):
+    user_id: str
+    message: str
+    history: Optional[List[Dict[str, Any]]] = []
+
+@app.post("/api/chat")
+async def chat_with_ui(request: ChatRequest):
+    """
+    Endpoint that the frontend or Postman will call.
+    """
+    try:
+        reply = chat_service.get_reply(
+            user_id=request.user_id,
+            user_message=request.message,
+            chat_history=request.history
+        )
+        return {"reply": reply}
+    
+    except Exception as e:
+        import traceback
+        error_msg = traceback.format_exc()
+        print(error_msg)
+        raise HTTPException(status_code=500, detail=error_msg)
+
+if __name__ == "__main__":
+    # Runs the server on port 8002
+    uvicorn.run(app, host="0.0.0.0", port=8002)
