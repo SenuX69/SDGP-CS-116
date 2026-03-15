@@ -1143,8 +1143,7 @@ class RecommendationEngine:
                     })
 
         # 3. Fallback: Band-based Vertical Promotion
-        # FIX (2026-03-04): Previous code ALWAYS prepended 'Junior' even for a Senior
-        # with 7+ years experience and a Master's degree. Now we use status_level
+        # Needing 7+ years experience and a Master's degree. Now we use status_level
         # AND experience_years together to pick the correct target label.
         if not found_data_driven and current_band < 4:
             target_band  = current_band + 1
@@ -1167,7 +1166,7 @@ class RecommendationEngine:
                 target_label = "Senior"
                 curr_label   = "Junior"
             else:
-                # True entry level — school leaver or no exp
+                # True entry level  school leaver or no exp
                 prefixes = ["Junior", "Associate", "Assistant", "Trainee"]
                 curr_label   = "Entry/Student"
                 target_label = "Junior" if not any(p in current_role for p in prefixes) else ""
@@ -1487,11 +1486,10 @@ class RecommendationEngine:
         """Helper to score and format a single course/degree"""
         level = self.classify_course_level(str(course["course_title"]), str(course.get("duration", "N/A")))
         
-        # ── Phase 10: Hybrid ML Scoring (0.6 SBERT + 0.4 ML) ──────────────────
+        #  Phase 10: Hybrid ML Scoring (0.6 SBERT + 0.4 ML) 
         score = similarity_score
         if self.ml_layer and assessment_vector:
             try:
-                # Use GBM to refine the semantic match with structural fit
                 score = self.ml_layer.score_course_fit(
                     assessment_vector, 
                     level, 
@@ -1544,7 +1542,6 @@ class RecommendationEngine:
                     score *= 1.2
 
         #  Fill in missing presentation data
-        # Check 'cat' if 'category' is missing (Unified CSV alignment)
         category = course.get("cat", course.get("category", "General"))
         market_data = self._estimate_market_average(level, str(category), course.get("provider", ""))
         

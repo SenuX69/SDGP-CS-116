@@ -138,7 +138,7 @@ def orchestrate():
     logger.info("="*50)
     
     try:
-        # 1. cleanup old raw files
+        #  cleanup old raw files
         cleanup_old_files(DATA_DIR, days=30)
         
         scrapers = [
@@ -161,13 +161,13 @@ def orchestrate():
     except Exception as e:
         logger.error(f"Critical error during orchestration: {e}")
     finally:
-        # 3. merge all jobs (even if some failed or we were interrupted)
+        #  merge all jobs (even if some failed or we were interrupted)
         logger.info("Starting final data merge (Safety Flow)...")
         merge_script = PROJECT_ROOT / "Machine Learning and Data Cleaning" / "scripts" / "merge_all_jobs.py"
         if merge_script.exists():
             run_scraper("MergeAllJobs", merge_script, [])
             
-            # 4. Final validation of master file
+            #  Final validation of master file
             master_file = PROJECT_ROOT / "Machine Learning and Data Cleaning" / "data" / "processed" / "all_jobs_master.csv"
             if validate_data(master_file, min_rows=100):
                 logger.info("Pipeline completed successfully with valid data.")
@@ -176,7 +176,7 @@ def orchestrate():
         else:
             logger.warning(f"merge script not found: {merge_script}")
 
-        # 5. Regenerate model artifacts (.pt embedding cache) now that data is fresh
+        #  Regenerate model artifacts (.pt embedding cache) now that data is fresh
         logger.info("="*50)
         logger.info("REGENERATING MODEL ARTIFACTS (Embedding Cache)")
         artifact_script = Path(__file__).parent / "generate_model_artifacts.py"
@@ -186,7 +186,7 @@ def orchestrate():
         else:
             logger.warning(f"Artifact generator not found: {artifact_script}")
                 
-        # 6. summary
+        #  summary
         logger.info("="*50)
         logger.info("SCRAPING SUMMARY")
         if 'results' in locals():
