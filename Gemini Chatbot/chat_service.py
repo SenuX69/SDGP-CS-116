@@ -72,3 +72,28 @@ class ChatService:
         except Exception: 
             return ""
 
+
+     
+    def get_job_context(self, query):
+        """Searches MongoDB for relevant Sri Lankan job vacancies from which we scraped from."""
+        if self.db is None: return ""
+        try:
+            words = [kw.lower() for kw in str(query).split() if len(kw) > 3]
+            if not words: return ""
+            pattern = "|".join(words)
+            
+            job_hits = self.db.jobs.find({
+                "$or": [
+                    {"title": {"$regex": pattern, "$options": "i"}},
+                    {"company": {"$regex": pattern, "$options": "i"}},
+                    {"category": {"$regex": pattern, "$options": "i"}}
+                ]
+            }).limit(5)
+            
+            results = [f"Job: {j.get('title')} at {j.get('company')}" for j in job_hits]
+            return " | ".join(results) if results else ""
+        except Exception:
+            return ""
+
+    def get_smart_context(self, user_id, user_message=""):
+
