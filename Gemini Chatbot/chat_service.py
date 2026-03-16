@@ -7,7 +7,6 @@ class ChatService:
         self.db = db          #  MongoDB
         self._setup_gemini()
 
-
     def _setup_gemini(self):
         """Configure Gemini with a strict persona to save tokens since well this is a free tier accut."""
         load_dotenv()
@@ -32,7 +31,7 @@ class ChatService:
             model_name="models/gemma-3-1b-it"
         )
 
-     def get_academic_context(self, query):
+    def get_academic_context(self, query):
         """Searches MongoDB for relevant academic programs and skill-gap courses from mongo db to make it cloud capable."""
         if self.db is None: return ""
         try:
@@ -72,8 +71,6 @@ class ChatService:
         except Exception: 
             return ""
 
-
-     
     def get_job_context(self, query):
         """Searches MongoDB for relevant Sri Lankan job vacancies from which we scraped from."""
         if self.db is None: return ""
@@ -96,4 +93,51 @@ class ChatService:
             return ""
 
     def get_smart_context(self, user_id, user_message=""):
+        """Silent RAG only answers what it is questioned for and based on context and try not to hallucinate."""
+        context_parts = []
+        acad = self.get_academic_context(user_message)
+        jobs = self.get_job_context(user_message)
+        if acad: context_parts.append(f"Academic: {acad}")
+        if jobs: context_parts.append(f"Live Vacancies: {jobs}")
+        if self.db is not None:
+            user = self.db.users.find_one({"_id": user_id})
+            if user: 
+                context_parts.append(f"User Profile: Skills={user.get('skills')}, Goal={user.get('target_job')}")
+        
+        return " | ".join(context_parts) if context_parts else ""
 
+    def get_reply(self, user_id, user_message, chat_history=None):
+        """Standard reply logic using the smart context."""
+        try:
+            facts = self.get_smart_context(user_id, user_message)
+            full_prompt = (
+                f"{self.system_instructions}\n\n"
+                f"{facts}\n\n"
+                f"USER: {user_message}"
+            )
+            
+            chat = self.model.start_chat(history=chat_history or [])
+            response = chat.send_message(full_prompt)
+            return response.text
+ 
+        except Exception as e:
+            print(f"DEBUG - AI Error: {e}")
+            return "I'm having a technical hiccup right now. Please try again in a minute!"
+
+
+if __name__ == "__main__":
+    # This allows you to run the file directly for testing
+    from pymongo import MongoClient
+    
+    # Setup connection from the env files
+    client = MongoClient(os.getenv("MONGO_URI"))
+    db = client[os.getenv("DATABASE_NAME")]
+    
+    # Initialize (we'll skip the RecommendationEngine for now to keep it simple otherwise too problematic for now probably a future feature)
+    service = ChatService(db=db)
+    
+    print("--- PathFinder+ Chatbot CLI Test ---")
+    while True:
+        user_in = input("You: ")
+        if user_in.lower() in ["exit", "quit"]: break
+        print(f"Assistant: {service.get_reply('test_user', user_in)}\n")
