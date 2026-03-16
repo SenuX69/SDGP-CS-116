@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import pandas as pd
 import numpy as np
 import sys
@@ -1804,7 +1803,6 @@ if __name__ == "__main__":
     # print("\n--- RECOMMENDED MENTORS ---")
     # for m in res["mentors"]:
     #     print(f"- {m['name']} ({m['title']} at {m['company']}) [Match: {m['score']}]")
-=======
 import pandas as pd
 import numpy as np
 import sys
@@ -3817,4 +3815,3 @@ if __name__ == "__main__":
         force_refresh=False
     )
 
->>>>>>> bfbe53ef6bb934196fb2650c10feae91997773ff
