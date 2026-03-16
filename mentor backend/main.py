@@ -260,4 +260,15 @@ def get_suggestions(assessment_id: int, db: Session = Depends(get_db), me: User 
     top = recommend_mentors(db, results, top_k=5)
     return [{"mentor_id": m.id, "display_name": m.display_name, "bio": m.bio, "match_score": score} for (m, score) in top]
 
-        
+# Apply / Approve (Apply button -> Request pending/approved)
+@app.post("/mentorship/apply")
+def apply_for_mentor(data: ApplyIn, db: Session = Depends(get_db), me: User = Depends(get_me)):
+    mentor = db.get(MentorProfile, data.mentor_id)
+    if not mentor or not mentor.active:
+        raise HTTPException(404, "Mentor not available")
+
+    req = MentorshipRequest(student_id=me.id, mentor_id=data.mentor_id, status="pending")
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    return {"request_id": req.id, "status": req.status}        
