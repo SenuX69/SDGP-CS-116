@@ -291,3 +291,15 @@ def my_latest_request(db: Session = Depends(get_db), me: User = Depends(get_me))
         "status": req.status,
         "mentor": {"id": mentor.id, "display_name": mentor.display_name, "bio": mentor.bio}
     }
+@app.patch("/mentorship/requests/{request_id}")
+def approve_or_reject_request(request_id: int, data: ApproveIn, db: Session = Depends(get_db), me: User = Depends(get_me)):
+    if me.role != "admin":
+        raise HTTPException(403, "Admin only (for demo)")
+    req = db.get(MentorshipRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    if data.status not in ("approved", "rejected"):
+        raise HTTPException(400, "status must be approved or rejected")
+    req.status = data.status
+    db.commit()
+    return {"request_id": req.id, "status": req.status}
