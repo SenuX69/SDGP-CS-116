@@ -25,7 +25,7 @@ export default function ResultPage() {
   if (!data) {
     return (
       <div className="flex justify-center items-center min-h-screen">
-        Loading career path...
+        Loading career path....
       </div>
     );
   }
