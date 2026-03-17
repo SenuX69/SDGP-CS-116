@@ -36,7 +36,7 @@ export default function Courses() {
 
             <div className="flex gap-3 mt-3 text-sm text-gray-500">
               <span className="bg-green-100 text-green-600 px-2 py-0.5 rounded">
-                8H
+                10H
               </span>
               <span>Cost: Free</span>
             </div>
