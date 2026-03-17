@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Linkedin, Github, Facebook } from "lucide-react";
+import { Linkedin, Github, Facebook, Instagram } from "lucide-react";
 
 const Footer = () => {
   const navLinks = [
@@ -68,14 +68,19 @@ const Footer = () => {
             © {new Date().getFullYear()} <Link href="/" className="hover:underline">PathFinder+™</Link>. All Rights Reserved.
           </span>
           <div className="flex mt-4 sm:justify-center sm:mt-0 gap-4">
-            <a href="https://linkedin.com" className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 hover:text-purple-600 hover:bg-white/30">
+            <a href="https://www.linkedin.com/company/pathfinderplus/" className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 hover:text-purple-600 hover:bg-white/30">
               <Linkedin size={18} className="align-middle" />
               <span className="sr-only">LinkedIn account</span>
             </a>
-            <a href="https://facebook.com" className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 hover:text-purple-600 hover:bg-white/30">
+            <a href="https://www.facebook.com/pathfinderplus.lk/" className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 hover:text-purple-600 hover:bg-white/30">
               <Facebook size={18} className="align-middle" />
               <span className="sr-only">Facebook account</span>
             </a>
+            <a href="https://instagram.com/pathfinder.plus?igsh=MTFnenJxdm84YW1ldA" className="flex items-center justify-center w-9 h-9 rounded-full text-gray-500 hover:text-purple-600 hover:bg-white/30">
+              <Instagram size={18} className="align-middle" />
+              <span className="sr-only">Instagram account</span>
+            </a>
+
           </div>
         </div>
       </div>
