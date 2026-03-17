@@ -97,3 +97,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api")
+
+from app.routers.quiz import router as quiz_router
+
+app.include_router(quiz_router, prefix="/api")
