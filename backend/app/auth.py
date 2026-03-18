@@ -1,53 +1,68 @@
-from datetime import datetime, timedelta
-from typing import Optional
-from jose import JWTError, jwt
-from dotenv import load_dotenv
-import bcrypt
-import os
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+from passlib.context import CryptContext
 
-load_dotenv()
+router = APIRouter()
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# TEMP database
+fake_users_db = []
 
 
-# ─── Password Functions ──────────────────────────────────────
+# =========================
+# MODELS
+# =========================
 
-def hash_password(password: str) -> str:
-    salt = bcrypt.gensalt()
-    hashed = bcrypt.hashpw(password.encode("utf-8"), salt)
-    return hashed.decode("utf-8")
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(
-        plain_password.encode("utf-8"),
-        hashed_password.encode("utf-8")
-    )
+class UserRegister(BaseModel):
+    name: str
+    email: str
+    password: str
 
 
-# ─── Token Functions ─────────────────────────────────────────
-
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    to_encode = data.copy()
-
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
-
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+class UserLogin(BaseModel):
+    email: str
+    password: str
 
 
-def verify_token(token: str) -> Optional[str]:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        if email is None:
-            return None
-        return email
-    except JWTError:
-        return None
+# =========================
+# REGISTER API
+# =========================
+
+@router.post("/register")
+def register(user: UserRegister):
+
+    # check if email already exists
+    for u in fake_users_db:
+        if u["email"] == user.email:
+            raise HTTPException(status_code=400, detail="Email already exists")
+
+    hashed_password = pwd_context.hash(user.password)
+
+    new_user = {
+        "name": user.name,
+        "email": user.email,
+        "password": hashed_password
+    }
+
+    fake_users_db.append(new_user)
+
+    return {"message": "User registered successfully"}
+
+
+# =========================
+# LOGIN API
+# =========================
+
+@router.post("/login")
+def login(user: UserLogin):
+
+    for u in fake_users_db:
+        if u["email"] == user.email:
+            if pwd_context.verify(user.password, u["password"]):
+                return {
+    "message": "Login successful",
+    "name": u["name"]
+}
+
+    raise HTTPException(status_code=400, detail="Invalid credentials")
