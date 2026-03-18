@@ -9,7 +9,7 @@ This backend will provide APIs for the SDGP project.
 
 ## Tech Stack
 - Python
-- FastAPI (planned)
+- FastAPI 
 
 ## How to run (to be updated)
 Backend implementation will be added in later commits.

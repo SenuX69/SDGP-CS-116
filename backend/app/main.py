@@ -39,57 +39,8 @@ app = FastAPI(
     version="0.3.0",
 )
 
-@app.get("/health")
-def health_check():
-    return {"status": "ok"}
+app.include_router(auth_router, prefix="/api")
 
-class RecommendRequest(BaseModel):
-    target_role: str = Field(..., examples=["Software Engineer"])
-    skills: List[str] = Field(default_factory=list, examples=[["python", "sql", "java"]])
-    interests: List[str] = Field(default_factory=list, examples=[["backend", "web development"]])
-    top_n: int = Field(default=5, ge=1, le=20)
+from app.routers.quiz import router as quiz_router
 
-# --- Load engine once (startup) ---
-try:
-    engine = RecommendationEngine(
-        jobs_df_path=JOBS_CSV,
-        courses_df_path=COURSES_CSV,
-    )
-    startup_error = None
-except Exception as e:
-    engine = None
-    startup_error = str(e)
-
-@app.get("/status")
-def status():
-    if engine is None:
-        return {"engine_loaded": False, "error": startup_error}
-    return {"engine_loaded": True}
-
-@app.post("/api/recommend")
-def recommend(req: RecommendRequest) -> Dict[str, Any]:
-    """
-    Generate job and course recommendations using ML engine
-    """
-    if engine is None:
-        raise HTTPException(status_code=500, detail=f"Engine not loaded: {startup_error}")
-
-    jobs = engine.recommend_jobs(
-        target_role=req.target_role,
-        skills=req.skills,
-        interests=req.interests,
-        top_n=req.top_n,
-    )
-
-    courses = engine.recommend_courses(
-        target_role=req.target_role,
-        skills=req.skills,
-        interests=req.interests,
-        top_n=req.top_n,
-    )
-
-    return {
-        "target_role": req.target_role,
-        "jobs": jobs,
-        "courses": courses,
-    }
+app.include_router(quiz_router, prefix="/api")
