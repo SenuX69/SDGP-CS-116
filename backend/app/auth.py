@@ -1,13 +1,16 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from passlib.context import CryptContext
+from supabase import create_client
 
 router = APIRouter()
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SUPABASE_URL = "https://fivqjyegpeatgeatbbdj.supabase.co"
+SUPABASE_KEY = "sb_publishable_Bt0svPzhOpYB8X_2tWAv_g_-9bb0D89"
 
-# TEMP database
-fake_users_db = []
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # =========================
@@ -26,43 +29,50 @@ class UserLogin(BaseModel):
 
 
 # =========================
-# REGISTER API
+# REGISTER
 # =========================
 
 @router.post("/register")
 def register(user: UserRegister):
 
-    # check if email already exists
-    for u in fake_users_db:
-        if u["email"] == user.email:
-            raise HTTPException(status_code=400, detail="Email already exists")
+    # check if user exists
+    existing = supabase.table("users").select("*").eq("email", user.email).execute()
 
+    if existing.data:
+        raise HTTPException(status_code=400, detail="User already exists")
+
+    # hash password
     hashed_password = pwd_context.hash(user.password)
 
-    new_user = {
+    # insert user
+    supabase.table("users").insert({
         "name": user.name,
         "email": user.email,
         "password": hashed_password
-    }
-
-    fake_users_db.append(new_user)
+    }).execute()
 
     return {"message": "User registered successfully"}
 
 
 # =========================
-# LOGIN API
+# LOGIN
 # =========================
 
 @router.post("/login")
 def login(user: UserLogin):
 
-    for u in fake_users_db:
-        if u["email"] == user.email:
-            if pwd_context.verify(user.password, u["password"]):
-                return {
-    "message": "Login successful",
-    "name": u["name"]
-}
+    response = supabase.table("users").select("*").eq("email", user.email).execute()
 
-    raise HTTPException(status_code=400, detail="Invalid credentials")
+    if not response.data:
+        raise HTTPException(status_code=400, detail="User not found")
+
+    db_user = response.data[0]
+
+    if not pwd_context.verify(user.password, db_user["password"]):
+        raise HTTPException(status_code=400, detail="Invalid password")
+
+    return {
+        "message": "Login successful",
+        "name": db_user["name"],
+        "email": db_user["email"]
+    }
