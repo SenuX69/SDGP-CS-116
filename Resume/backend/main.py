@@ -355,3 +355,51 @@ def parse_education_entries(text: str) -> list[dict]:
 
     return entries
 
+
+# Resume Analyzer
+
+def analyze_resume(parsed: dict) -> dict:
+    
+    #Analyzing resume and producing actionable suggestions for users cv's improvement
+    
+    skills_set = {s for s in parsed.get("skills", [])}
+
+    matched_required = skills_set & REQUIRED_SKILLS
+    missing_required = REQUIRED_SKILLS - skills_set
+    info = parsed.get("personal_info", {})
+
+    # Suggestions
+    suggestions: list[str] = []
+
+    if missing_required:
+        top_missing = sorted(missing_required)[:5]
+        suggestions.append(f"Consider adding these commonly required skills: {', '.join(top_missing)}.")
+
+    if not parsed.get("summary"):
+        suggestions.append("Add a professional summary or objective at the top of your resume.")
+
+    if not info.get("links"):
+        suggestions.append("Include a LinkedIn profile or GitHub URL to strengthen your online presence.")
+
+    if not parsed.get("projects"):
+        suggestions.append("Add a Projects section to showcase hands-on work.")
+
+    if not parsed.get("certifications"):
+        suggestions.append("Relevant certifications (AWS, GCP, Azure, etc.) can significantly boost your profile.")
+
+    if len(skills_set) < 8:
+        suggestions.append("Expand your Skills section — aim for at least 8–12 relevant technologies.")
+
+    experience_entries = parsed.get("experience", [])
+    if isinstance(experience_entries, list):
+        for entry in experience_entries:
+            if not entry.get("duration"):
+                suggestions.append("Make sure each work experience entry includes clear date ranges.")
+                break
+
+    return {
+        "matched_skills":  sorted(matched_required),
+        "missing_skills":  sorted(missing_required),
+        "suggestions": suggestions,
+    }
+
