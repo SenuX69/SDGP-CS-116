@@ -1,3 +1,80 @@
+<<<<<<< HEAD
+{
+    "provider_estimates": {
+        "SLIIT": "2,800,000 - 3,200,000 LKR",
+        "IIT": "2,500,000 - 3,200,000 LKR",
+        "NSBM": "2,200,000 - 2,800,000 LKR",
+        "CINEC": "1,800,000 - 2,500,000 LKR",
+        "Esoft Metro Campus": "1,500,000 - 2,000,000 LKR",
+        "NIBM": "800,000 - 1,200,000 LKR",
+        "Moratuwa": "Free (State University)",
+        "Colombo": "Free (State University)",
+        "Peradeniya": "Free (State University)",
+        "Kelaniya": "Free (State University)",
+        "Japura": "Free (State University)",
+        "Ruhuna": "Free (State University)",
+        "Open University": "150,000 - 300,000 LKR",
+        "BCS": "350,000 LKR (Exam Fees)",
+        "CIMA": "400,000 - 600,000 LKR",
+        "CFA": "1,000 USD (~320,000 LKR)",
+        "AWS": "150 USD (~48,000 LKR)",
+        "PMP": "550 - 800 USD (~176,000 - 256,000 LKR)",
+        "CISSP": "750 USD (~240,000 LKR)",
+        "CompTIA": "400 USD (~128,000 LKR)"
+    },
+    "level_averages": {
+        "Academic (Degree)": {
+            "duration": "4 years",
+            "fee": "1,500,000 - 3,800,000 LKR",
+            "range": "1.5M - 3.8M"
+        },
+        "Professional": {
+            "duration": "3-6 months",
+            "fee": "35,000 - 250,000 LKR",
+            "range": "35k - 250k"
+        },
+        "Diploma": {
+            "duration": "1 year",
+            "fee": "120,000 - 450,000 LKR",
+            "range": "120k - 450k"
+        },
+        "HND": {
+            "duration": "2 years",
+            "fee": "450,000 - 950,000 LKR",
+            "range": "450k - 950k"
+        },
+        "Postgraduate": {
+            "duration": "18-24 months",
+            "fee": "650,000 - 1,800,000 LKR",
+            "range": "650k - 1.8M"
+        },
+        "Masters (MSc/MBA)": {
+            "duration": "2 years",
+            "fee": "800,000 - 2,200,000 LKR",
+            "range": "800k - 2.2M"
+        },
+        "Foundation": {
+            "duration": "6-12 months",
+            "fee": "80,000 - 250,000 LKR",
+            "range": "80k - 250k"
+        },
+        "Beginner / Vocational": {
+            "duration": "3 months",
+            "fee": "15,000 - 85,000 LKR",
+            "range": "15k - 85k"
+        },
+        "PhD": {
+            "duration": "3-5 years",
+            "fee": "500,000 - 1,500,000 LKR (Research costs)",
+            "range": "500k - 1.5M"
+        }
+    },
+    "notes": {
+        "source": "Researched Sri Lankan market data (SLIIT/IIT/NIBM/OUSL 2026)",
+        "currency": "LKR",
+        "last_updated": "2026-02-27"
+    }
+=======
 {
     "provider_estimates": {
         "SLIIT": "2,800,000 - 3,200,000 LKR",
@@ -73,4 +150,5 @@
         "currency": "LKR",
         "last_updated": "2026-02-27"
     }
+>>>>>>> bfbe53ef6bb934196fb2650c10feae91997773ff
 }

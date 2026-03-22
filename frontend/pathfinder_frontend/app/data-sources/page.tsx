@@ -1,5 +1,6 @@
 "use client";
 
+<<<<<<< HEAD
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -146,3 +147,8 @@ export default function DataSourcesPage() {
         </main>
     );
 }
+=======
+export default function DataSourcesPage() {
+	return <div className="p-6">Data Sources</div>;
+}
+>>>>>>> d46034006fbfab04e3addc49f7ed278fccc8bba9

@@ -1,3 +1,62 @@
+<<<<<<< HEAD
+{
+    "roles": {
+        "Software Engineer": {
+            "Entry": "80,000 - 150,000 LKR",
+            "Mid": "200,000 - 350,000 LKR",
+            "Senior": "400,000 - 750,000 LKR",
+            "Lead": "800,000 - 1,200,000 LKR"
+        },
+        "Data Scientist": {
+            "Entry": "90,000 - 160,000 LKR",
+            "Mid": "250,000 - 450,000 LKR",
+            "Senior": "500,000 - 900,000 LKR"
+        },
+        "Business Analyst": {
+            "Entry": "70,000 - 120,000 LKR",
+            "Mid": "150,000 - 280,000 LKR",
+            "Senior": "300,000 - 550,000 LKR"
+        },
+        "QA Engineer": {
+            "Entry": "60,000 - 110,000 LKR",
+            "Mid": "130,000 - 250,000 LKR",
+            "Senior": "280,000 - 500,000 LKR"
+        },
+        "DevOps Engineer": {
+            "Entry": "90,000 - 160,000 LKR",
+            "Mid": "250,000 - 450,000 LKR",
+            "Senior": "500,000 - 1,000,000 LKR"
+        },
+        "UI/UX Designer": {
+            "Entry": "60,000 - 110,000 LKR",
+            "Mid": "130,000 - 260,000 LKR",
+            "Senior": "280,000 - 550,000 LKR"
+        },
+        "Marketing Specialist": {
+            "Entry": "50,000 - 90,000 LKR",
+            "Mid": "120,000 - 220,000 LKR",
+            "Senior": "250,000 - 450,000 LKR"
+        },
+        "Project Manager": {
+            "Entry": "80,000 - 140,000 LKR",
+            "Mid": "180,000 - 350,000 LKR",
+            "Senior": "400,000 - 800,000 LKR"
+        },
+        "HR Manager": {
+            "Entry": "60,000 - 100,000 LKR",
+            "Mid": "120,000 - 250,000 LKR",
+            "Senior": "300,000 - 600,000 LKR"
+        }
+    },
+    "sectors": {
+        "IT": "120,000 LKR (Median)",
+        "Finance": "100,000 LKR (Median)",
+        "Manufacturing": "70,000 LKR (Median)",
+        "Retail": "50,000 LKR (Median)"
+    },
+    "currency": "LKR",
+    "updated": "2026-02-27"
+=======
 {
     "roles": {
         "Software Engineer": {
@@ -67,4 +126,5 @@
     },
     "currency": "LKR",
     "updated": "2026-02-27"
+>>>>>>> bfbe53ef6bb934196fb2650c10feae91997773ff
 }
