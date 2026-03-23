@@ -73,6 +73,7 @@ async def process_standalone_resume_scan(file: UploadFile = File(...), mode: str
             4. DO NOT mash Projects or References into the Professional Summary. The Summary must strictly be 2-3 sentences about the person.
             5. "REFEREES" or "REFERENCES" must be totally ignored from the Education section. Do NOT list a Referee as an Institution.
             6. In the "suggestions" array, give explicit advice on how to improve the RESUME FORMATTING or STRUCTURE (e.g., advising them to move Projects above Education, how to separate Referees from the main text, or fixing layout columns so ATS can read it). 
+            7. IMPORTANT FOR ATS SCORE: Infer what Target Job this resume is aiming for. Then, put ALL the candidate's core technical and soft skills into "matched_skills". Then, list exactly 5-8 crucial industry standard skills for their intended role that are MISSING from their resume in "missing_skills". DO NOT leave these arrays empty, the frontend relies on them for scoring!
             
             Structure exactly like this:
             {{
@@ -88,8 +89,8 @@ async def process_standalone_resume_scan(file: UploadFile = File(...), mode: str
                     ]
                 }},
                 "analysis": {{
-                    "matched_skills": ["...", "..."],
-                    "missing_skills": ["...", "..."],
+                    "matched_skills": ["existing_skill_1", "existing_skill_2", "..."],
+                    "missing_skills": ["missing_skill_1", "missing_skill_2", "..."],
                     "suggestions": [
                         "A short sentence suggesting how they can rewrite a specific bullet point for impact.",
                         "Another short sentence on missing corporate frameworks to add.",
