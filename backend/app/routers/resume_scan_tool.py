@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import fitz
 from pydantic import BaseModel
-from google import genai
+import google.generativeai as genai
 import traceback
 
 # Dynamically link the teammate's original offline Scanner engine
