@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, HTTPException, Depends ## FastAPI Backend Setup and Imports
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from typing import Optional, Dict, List
@@ -187,7 +187,7 @@ def startup():
 def home():
     return {"message": "Mentor backend running ✅"}
 
-# User
+# Users
 @app.post("/users")
 def create_user(data: UserCreate, db: Session = Depends(get_db)):
     u = User(name=data.name, role=data.role)
