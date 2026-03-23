@@ -43,7 +43,6 @@ class UserLogin(BaseModel):
 
 # REGISTER
 
-
 @router.post("/register")
 def register(user: UserRegister):
 
@@ -53,7 +52,7 @@ def register(user: UserRegister):
     if existing.data:
         raise HTTPException(status_code=400, detail="User already exists")
 
-    # hash password
+    # hashing password
     hashed_password = pwd_context.hash(user.password)
 
     # insert user
