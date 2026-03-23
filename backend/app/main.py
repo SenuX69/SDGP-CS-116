@@ -169,3 +169,17 @@ try:
     app.include_router(mentor_router)
 except Exception as e:
     print(f"Failed to load Mentor WebSockets organically. Check syntax routing: {e}")
+<<<<<<< HEAD
+=======
+
+
+    from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # for dev only
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+>>>>>>> 8ad02e9 (Backend: update main application logic)
