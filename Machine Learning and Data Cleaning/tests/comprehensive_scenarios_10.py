@@ -2,7 +2,6 @@ import sys
 import os
 from pathlib import Path
 
-# Setup paths relative to project root (Machine Learning and Data Cleaning)
 ml_root = Path(__file__).resolve().parent.parent
 sys.path.append(str(ml_root))
 
