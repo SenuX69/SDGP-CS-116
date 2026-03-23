@@ -2,7 +2,6 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import datetime
 
-
 # ─── User Schemas ────────────────────────────────────────────
 
 class UserCreate(BaseModel):
@@ -24,7 +23,6 @@ class UserOut(BaseModel):
     class Config:
         from_attributes = True
 
-
 # ─── Token Schemas ───────────────────────────────────────────
 
 class Token(BaseModel):
@@ -34,7 +32,6 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
-
 
 # ─── Profile Schemas ─────────────────────────────────────────
 
