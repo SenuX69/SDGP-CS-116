@@ -19,6 +19,7 @@ UPLOAD_DIR = "./storage/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=UPLOAD_DIR), name="static")
 
+
 # ---------------------------
 # DB (SQLite)
 # ---------------------------
@@ -195,7 +196,7 @@ def create_user(data: UserCreate, db: Session = Depends(get_db)):
     db.refresh(u)
     return {"id": u.id, "name": u.name, "role": u.role}
 
-# Mentors
+# Mentor
 @app.get("/mentors")
 def list_mentors(db: Session = Depends(get_db)):
     mentors = db.query(MentorProfile).all()
