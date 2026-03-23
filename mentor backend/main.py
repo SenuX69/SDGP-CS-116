@@ -187,7 +187,7 @@ def startup():
 def home():
     return {"message": "Mentor backend running ✅"}
 
-# Users
+# User
 @app.post("/users")
 def create_user(data: UserCreate, db: Session = Depends(get_db)):
     u = User(name=data.name, role=data.role)
@@ -196,7 +196,7 @@ def create_user(data: UserCreate, db: Session = Depends(get_db)):
     db.refresh(u)
     return {"id": u.id, "name": u.name, "role": u.role}
 
-# Mentor
+# Mentors
 @app.get("/mentors")
 def list_mentors(db: Session = Depends(get_db)):
     mentors = db.query(MentorProfile).all()
