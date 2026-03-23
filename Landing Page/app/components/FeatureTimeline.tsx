@@ -72,11 +72,11 @@ export default function FeatureTimeline() {
 
                                 {/* Card */}
                                 <div className="
-                  bg-slate-50 border border-slate-200 rounded-xl
-                  px-6 py-4 shadow-sm
-                  transition-all duration-300
-                  hover:-translate-y-1 hover:shadow-md
-                ">
+                                        bg-slate-50 border border-slate-200 rounded-xl
+                                        px-6 py-4 shadow-sm
+                                        transition-all duration-300
+                                        hover:-translate-y-1 hover:shadow-md
+                                ">
                                     <p className="text-slate-900 font-medium">
                                         {feature}
                                     </p>
