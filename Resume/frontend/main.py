@@ -20,8 +20,6 @@ OUTPUT_DIR = Path("./outputs")
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 
-# Extracting Text
-
 def extract_pdf(path: str) -> str:
     text = ""
     with pdfplumber.open(path) as pdf:
@@ -42,8 +40,6 @@ def extract_docx(path: str) -> str:
                     lines.append(cell.text.strip())
     return "\n".join(lines)
 
-
-# Section Detection
 
 EMAIL_RE    = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
 PHONE_RE    = re.compile(r"(\+?[\d][\d\s\-().]{7,}\d)")
