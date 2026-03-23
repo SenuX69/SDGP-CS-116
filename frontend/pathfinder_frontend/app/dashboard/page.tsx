@@ -7,6 +7,8 @@ import { Upload, Target, TrendingUp, Sparkles, BookOpen, Briefcase, ArrowRight }
 import { motion } from "framer-motion";
 import Navbar from "@/components/Navbar";
 
+
+/--#Welcome Greetings #----/ 
 export default function Dashboard() {
   const [name, setName] = useState("User");
   const [greeting, setGreeting] = useState("Hello");
